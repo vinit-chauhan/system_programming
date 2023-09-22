@@ -16,7 +16,8 @@ int main()
     *a = 11231;
 
     printf("\n");
-    printf("a: %d, b:%d", *a, b);
+    printf("a: %d, b:%d\n", *a, b);
+    printf("&a: %p, *a: %p, &b: %p\n", &a, a, &b);
     printf("\n");
 
     return 0;
