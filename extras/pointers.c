@@ -17,6 +17,7 @@ int main()
 
     printf("\n");
     printf("a: %d, b:%d\n", *a, b);
+    printf("b: %d, lb:%ld\n", &b, &b);
     printf("&a: %p, *a: %p, &b: %p\n", &a, a, &b);
     printf("\n");
 
