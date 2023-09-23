@@ -42,6 +42,13 @@ int main()
     long num1 = 10;
     long num2 = 5;
 
+    // Anonymous function, but only supported in GNU C. for others it will give error.
+    long (*my_func)(long, long) =
+        ({
+            long __fn__(long x, long y) { return x > y ? x : y; };
+            __fn__;
+        });
+
     printf("answer: %ld\n", math(num1, num2, my_div));
 
     return 0;
