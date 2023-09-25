@@ -9,8 +9,8 @@ int main()
     printf("%d\n", STDOUT_FILENO);
     printf("%d\n", STDERR_FILENO);
 
-    int fd = open("data/lorem_ipsum.txt", O_RDONLY);
-    if (fd == -1)
+    int fd;
+    if ((fd = open("data/lorem_ipsum.txt", O_RDONLY)) == -1)
     {
         write(STDERR_FILENO, "Error opening file.\n", 20);
     }
