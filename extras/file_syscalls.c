@@ -10,6 +10,7 @@ int main()
     printf("%d\n", STDERR_FILENO);
 
     int fd;
+    // If file does not exist, it will give an error
     if ((fd = open("data/lorem_ipsum.txt", O_RDONLY)) == -1)
     {
         write(STDERR_FILENO, "Error opening file.\n", 20);
@@ -30,11 +31,11 @@ int main()
                 write(STDOUT_FILENO, buffer, bytes_read);
             }
         } while (bytes_read != 0 || bytes_read == -1);
-    }
 
-    if (close(fd) == -1)
-    {
-        write(STDERR_FILENO, "Error closing file.\n", 20);
+        if (close(fd) == -1)
+        {
+            write(STDERR_FILENO, "Error closing file.\n", 20);
+        }
     }
 
     // Print to stderr : run and redirect `2> error.txt`
