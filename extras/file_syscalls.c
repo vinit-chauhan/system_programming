@@ -21,8 +21,20 @@ int main()
         do
         {
             bytes_read = read(fd, buffer, 100);
-            write(STDOUT_FILENO, buffer, bytes_read);
-        } while (bytes_read != 0);
+            if (bytes_read == -1)
+            {
+                write(STDERR_FILENO, "Error reading file.\n", 20);
+            }
+            else if (bytes_read > 0)
+            {
+                write(STDOUT_FILENO, buffer, bytes_read);
+            }
+        } while (bytes_read != 0 || bytes_read == -1);
+    }
+
+    if (close(fd) == -1)
+    {
+        write(STDERR_FILENO, "Error closing file.\n", 20);
     }
 
     // Print to stderr : run and redirect `2> error.txt`
