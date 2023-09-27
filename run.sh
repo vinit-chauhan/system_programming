@@ -17,4 +17,4 @@ mkdir -p ./$path
 
 gcc $input_file.c -o ./${output_file}
 
-./${output_file}
+./${output_file} "${@:2}"
