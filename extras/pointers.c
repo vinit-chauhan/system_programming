@@ -1,9 +1,8 @@
 #include <stdio.h>
 
-int main()
-{
-
-    int *a;
+int
+main() {
+    int* a;
     int b = 100;
 
     // This statement will give an Segmentation fault Error.
