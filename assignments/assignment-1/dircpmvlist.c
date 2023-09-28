@@ -1,7 +1,13 @@
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+char *source_dir, *destination_dir, *options;
+char** extensions;
+int OUTPUT = STDOUT_FILENO;
 
 void
 print_manual(int output_fd) {
@@ -23,20 +29,16 @@ Example:   \n\
 }
 
 int
-main(int argc, char* argv[]) {
-    char *source_dir, *destination_dir, *options;
-    char** extensions;
-    int OUTPUT = STDOUT_FILENO;
-
+init(int argc, char* argv[]) {
     // Check for number of arguments and throw error if not in range
     if (argc < 4) {
         write(STDERR_FILENO, "[Error]: Too few arguments.\n", 28);
         print_manual(OUTPUT);
-        exit(001);
+        return -1;
     } else if (argc > 10) {
         write(STDERR_FILENO, "[Error]: Too many arguments.\n", 29);
         print_manual(OUTPUT);
-        exit(002);
+        return -1;
     }
 
     // Parse command line arguments
@@ -44,17 +46,75 @@ main(int argc, char* argv[]) {
     destination_dir = argv[2];
     options = argv[3];
 
+    // check if options are valid
+    if (strcmp(options, "-cp") != 0 && strcmp(options, "-mv") != 0) {
+        write(STDERR_FILENO, "[Error]: Invalid option.\n", 25);
+        print_manual(OUTPUT);
+        return -1;
+    }
+
     // iterate through all extensions and store them in an array
     extensions = malloc((argc - 4) * sizeof(char*));
     for (int i = 4; i < argc; i++) {
         extensions[i - 4] = argv[i];
     }
 
-    printf("Source: %s\n", source_dir);
-    printf("Destination: %s\n", destination_dir);
-    printf("Options: %s\n", options);
-    printf("Extensions: ");
-    for (int i = 0; i < argc - 4; i++) {
-        printf("%s ", extensions[i]);
+    return 0;
+}
+
+int
+check_file_conditions() {
+    // check if source directory exists
+    if (access(source_dir, F_OK) == -1) {
+        write(STDERR_FILENO, "[Error]: Source directory does not exist.\n", 42);
+        return -1;
     }
+
+    // check if destination already exist or not
+    if (access(destination_dir, F_OK) == -1) {
+        open(destination_dir, O_CREAT | O_RDWR, 0777);
+    }
+    if (access(destination_dir, W_OK) == -1) {
+        write(STDERR_FILENO, "[Error]: Destination directory is not writable.\n", 48);
+        return -1;
+    }
+
+    // check if source file is readable
+    if (access(source_dir, R_OK) == -1) {
+        write(STDERR_FILENO, "[Error]: Source directory is not readable.\n", 43);
+    }
+
+    // get path of home directory
+    char* home_dir = getenv("HOME");
+    // check if source_dir belongs to home directory hierarchy
+    char* abs_source_dir = realpath(source_dir, NULL);
+    if (strncmp(abs_source_dir, home_dir, strlen(home_dir)) != 0) {
+        write(STDERR_FILENO, "[Error]: Source directory does not belong to home directory hierarchy.\n", 72);
+        return -1;
+    }
+
+    // check if destination_dir belongs to home directory hierarchy
+    char* abs_destination_dir = realpath(destination_dir, NULL);
+    if (strncmp(abs_destination_dir, home_dir, strlen(home_dir)) != 0) {
+        write(STDERR_FILENO, "[Error]: Destination directory does not belong to home directory hierarchy.\n", 77);
+        return -1;
+    }
+}
+
+int
+main(int argc, char* argv[]) {
+
+    // Check arguments and assign its values
+    if (init(argc, argv) == -1) {
+        exit(1);
+    }
+
+    // Check for file path related conditions
+    if (check_file_conditions() == -1) {
+        exit(1);
+    }
+
+    // Check the option and perform tasks accordingly
+
+    return 0;
 }
