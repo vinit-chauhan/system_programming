@@ -5,8 +5,12 @@
 #include <string.h>
 #include <unistd.h>
 
-char *source_dir, *destination_dir, *options;
+char *source_dir, *destination_dir;
 char** extensions;
+
+enum Options { OPTION_COPY = 0, OPTION_MOVE = 1, ERROR = -1 };
+
+int option = ERROR;
 int OUTPUT = STDOUT_FILENO;
 
 void
@@ -44,10 +48,11 @@ init(int argc, char* argv[]) {
     // Parse command line arguments
     source_dir = argv[1];
     destination_dir = argv[2];
-    options = argv[3];
+
+    option = (strcmp(argv[3], "-cp") == 0) ? OPTION_COPY : (strcmp(argv[3], "-mv") == 0 ? OPTION_MOVE : ERROR);
 
     // check if options are valid
-    if (strcmp(options, "-cp") != 0 && strcmp(options, "-mv") != 0) {
+    if (option == -1) {
         write(STDERR_FILENO, "[Error]: Invalid option.\n", 25);
         print_manual(OUTPUT);
         return -1;
@@ -102,6 +107,22 @@ check_file_conditions() {
 }
 
 int
+copy_dir() {
+    printf("-cp");
+    // copy directory and its content
+    // print a list of copy files, maybe?
+    return -1;
+}
+
+int
+move_dir() {
+    printf("-mv");
+    // move directory and its content
+    // print a list of moved files, maybe?
+    return -1;
+}
+
+int
 main(int argc, char* argv[]) {
 
     // Check arguments and assign its values
@@ -115,6 +136,15 @@ main(int argc, char* argv[]) {
     }
 
     // Check the option and perform tasks accordingly
+    if (option == OPTION_COPY) {
+        if (copy_dir() == -1) {
+            exit(1);
+        }
+    } else if (option == OPTION_MOVE) {
+        if (move_dir() == -1) {
+            exit(1);
+        }
+    }
 
     return 0;
 }
