@@ -1,4 +1,10 @@
+// Name: Vinit Hemantbhai Chauhan
+// Student Id: 110123359
+
+#define _XOPEN_SOURCE 500
+
 #include <fcntl.h>
+#include <ftw.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +13,7 @@
 
 char *source_dir, *destination_dir;
 char** extensions;
+int extension_count = 0;
 
 enum Options { OPTION_COPY = 0, OPTION_MOVE = 1, ERROR = -1 };
 
@@ -59,7 +66,8 @@ init(int argc, char* argv[]) {
     }
 
     // iterate through all extensions and store them in an array
-    extensions = malloc((argc - 4) * sizeof(char*));
+    extension_count = argc - 4;
+    extensions = malloc(extension_count * sizeof(char*));
     for (int i = 4; i < argc; i++) {
         extensions[i - 4] = argv[i];
     }
@@ -107,9 +115,34 @@ check_file_conditions() {
 }
 
 int
+copy_path(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+
+    if (typeflag == FTW_F) {
+        char ext[8];
+        for (int i = strlen(fpath) - 1, j = 0; i > 0 && j < 8 && fpath[i] != '.'; i--, j++) {
+            ext[j] = fpath[i];
+        }
+
+        for (int i = 0; i < extension_count; i++) {
+            if (strcmp(ext, extensions[i]) == 0) {
+                printf("Copying %s\n", fpath);
+                // do_copy()
+                break;
+            }
+        }
+    } else if (typeflag == FTW_D) {
+        // create the directory
+        printf("Creating %s\n", fpath);
+    }
+
+    return 0;
+}
+
+int
 copy_dir() {
-    printf("-cp");
+    printf("Copying Files...\n");
     // copy directory and its content
+    nftw(source_dir, copy_path, 10, FTW_PHYS);
     // print a list of copy files, maybe?
     return -1;
 }
@@ -136,14 +169,16 @@ main(int argc, char* argv[]) {
     }
 
     // Check the option and perform tasks accordingly
-    if (option == OPTION_COPY) {
-        if (copy_dir() == -1) {
-            exit(1);
-        }
-    } else if (option == OPTION_MOVE) {
-        if (move_dir() == -1) {
-            exit(1);
-        }
+    switch (option) {
+        case OPTION_COPY:
+            if (copy_dir() == -1) {
+                exit(1);
+            }
+        case OPTION_MOVE:
+            if (move_dir() == -1) {
+                exit(1);
+            }
+        default: break;
     }
 
     return 0;
