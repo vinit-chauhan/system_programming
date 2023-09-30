@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
-char *source_dir, *destination_dir;
+char *source_dir, *destination_dir, *relative_source_path;
 char** extensions;
 int extension_count = 0;
 
@@ -114,25 +114,53 @@ check_file_conditions() {
     }
 }
 
+//  Extract File name from the path
+char*
+extract_name(const char* path) {
+    char* name = malloc(sizeof(char) * 256);
+    int i = strlen(path) - 1;
+    for (; i >= 0 && path[i] != '/'; i--)
+        ;
+    strcpy(name, path + i + 1);
+    return name;
+}
+
 int
-copy_path(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+do_copy(const char* src, char* dest, mode_t mode) {
+    int fd_src = open(src, O_RDONLY);
+    int fd_dest = open(dest, O_CREAT | O_WRONLY, mode);
+    char buf[BUFSIZ];
+    while (read(fd_src, buf, BUFSIZ) > 0) {
+        write(fd_dest, buf, BUFSIZ);
+    }
+
+    return -1;
+}
+
+int
+copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+    relative_source_path = fpath + strlen(source_dir);
+    char* dest_path = strcpy(malloc(sizeof(char) * 256), destination_dir);
+    strcat(dest_path, relative_source_path);
 
     if (typeflag == FTW_F) {
         char ext[8];
-        for (int i = strlen(fpath) - 1, j = 0; i > 0 && j < 8 && fpath[i] != '.'; i--, j++) {
-            ext[j] = fpath[i];
-        }
+        int i = strlen(dest_path) - 1;
+        for (; i > 0 && dest_path[i] != '.'; i--)
+            ;
+        strcpy(ext, dest_path + i + 1);
 
         for (int i = 0; i < extension_count; i++) {
             if (strcmp(ext, extensions[i]) == 0) {
-                printf("Copying %s\n", fpath);
-                // do_copy()
+                // printf("Copying %s\n", name");
+                printf("%s -> %s:%x\n", fpath, dest_path, sb->st_mode);
+                do_copy(fpath, dest_path, sb->st_mode);
                 break;
             }
         }
     } else if (typeflag == FTW_D) {
         // create the directory
-        printf("Creating %s\n", fpath);
+        mkdir(dest_path, sb->st_mode);
     }
 
     return 0;
@@ -142,7 +170,7 @@ int
 copy_dir() {
     printf("Copying Files...\n");
     // copy directory and its content
-    nftw(source_dir, copy_path, 10, FTW_PHYS);
+    nftw(source_dir, copy_path_func, 64, FTW_PHYS);
     // print a list of copy files, maybe?
     return -1;
 }
