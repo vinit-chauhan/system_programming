@@ -129,6 +129,7 @@ int
 do_copy(const char* src, char* dest, mode_t mode) {
     int fd_src = open(src, O_RDONLY);
     int fd_dest = open(dest, O_CREAT | O_WRONLY, mode);
+
     char buf[BUFSIZ];
     while (read(fd_src, buf, BUFSIZ) > 0) {
         write(fd_dest, buf, BUFSIZ);
@@ -143,23 +144,25 @@ copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FT
     char* dest_path = strcpy(malloc(sizeof(char) * 256), destination_dir);
     strcat(dest_path, relative_source_path);
 
+    // If its a file and extension is in the list of extensions, copy the file
     if (typeflag == FTW_F) {
         char ext[8];
+
+        // Extract the extension form file path
         int i = strlen(dest_path) - 1;
         for (; i > 0 && dest_path[i] != '.'; i--)
             ;
         strcpy(ext, dest_path + i + 1);
 
+        //  Check if the extension is in the list of extensions
         for (int i = 0; i < extension_count; i++) {
             if (strcmp(ext, extensions[i]) == 0) {
-                // printf("Copying %s\n", name");
-                printf("%s -> %s:%x\n", fpath, dest_path, sb->st_mode);
+                write(STDOUT_FILENO, fpath, strlen(fpath));
                 do_copy(fpath, dest_path, sb->st_mode);
                 break;
             }
         }
-    } else if (typeflag == FTW_D) {
-        // create the directory
+    } else if (typeflag == FTW_D) { // If Its a directory, create the directory
         mkdir(dest_path, sb->st_mode);
     }
 
@@ -168,10 +171,9 @@ copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FT
 
 int
 copy_dir() {
-    printf("Copying Files...\n");
+    printf("Copying following Files:\n");
     // copy directory and its content
     nftw(source_dir, copy_path_func, 64, FTW_PHYS);
-    // print a list of copy files, maybe?
     return -1;
 }
 
