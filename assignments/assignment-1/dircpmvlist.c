@@ -40,7 +40,7 @@ Example:   \n\
 }
 
 int
-init(int argc, char* argv[]) {
+get_arguments(int argc, char* argv[]) {
     // Check for number of arguments and throw error if not in range
     if (argc < 4) {
         write(STDERR_FILENO, "[Error]: Too few arguments.\n", 28);
@@ -85,7 +85,7 @@ check_file_conditions() {
 
     // check if destination already exist or not
     if (access(destination_dir, F_OK) == -1) {
-        open(destination_dir, O_CREAT | O_RDWR, 0777);
+        mkdir(destination_dir, 0777);
     }
     if (access(destination_dir, W_OK) == -1) {
         write(STDERR_FILENO, "[Error]: Destination directory is not writable.\n", 48);
@@ -131,16 +131,39 @@ do_copy(const char* src, char* dest, mode_t mode) {
     int fd_dest = open(dest, O_CREAT | O_WRONLY, mode);
 
     char buf[BUFSIZ];
-    while (read(fd_src, buf, BUFSIZ) > 0) {
-        write(fd_dest, buf, BUFSIZ);
-    }
+    int read_size = 0;
 
-    return -1;
+    do {
+        if (read_size = read(fd_src, buf, BUFSIZ), read_size == -1) {
+            return -1;
+        }
+
+        if (write(fd_dest, buf, read_size) == -1) {
+            return -1;
+        }
+    } while (read_size > 0);
+
+    return 0;
 }
 
 int
-copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
-    relative_source_path = fpath + strlen(source_dir);
+do_operation(const char* fpath, char* dest_path, const struct stat* sb) {
+    printf("Working on: %s\n", fpath);
+    if (do_copy(fpath, dest_path, sb->st_mode) == -1) {
+        return -1;
+    }
+
+    if (option == OPTION_MOVE) {
+        if (remove(fpath) == -1) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int
+callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+    relative_source_path = (char*)(fpath + strlen(source_dir));
     char* dest_path = strcpy(malloc(sizeof(char) * 256), destination_dir);
     strcat(dest_path, relative_source_path);
 
@@ -154,12 +177,19 @@ copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FT
             ;
         strcpy(ext, dest_path + i + 1);
 
-        //  Check if the extension is in the list of extensions
-        for (int i = 0; i < extension_count; i++) {
-            if (strcmp(ext, extensions[i]) == 0) {
-                write(STDOUT_FILENO, fpath, strlen(fpath));
-                do_copy(fpath, dest_path, sb->st_mode);
-                break;
+        if (extension_count == 0) {
+            if (do_operation(fpath, dest_path, sb) == -1) {
+                write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
+            }
+
+        } else { //  Check if the extension is in the list of extensions
+            for (int i = 0; i < extension_count; i++) {
+                if (strcmp(ext, extensions[i]) == 0) {
+                    if (do_operation(fpath, dest_path, sb) == -1) {
+                        write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
+                    }
+                    break;
+                }
             }
         }
     } else if (typeflag == FTW_D) { // If Its a directory, create the directory
@@ -170,26 +200,16 @@ copy_path_func(const char* fpath, const struct stat* sb, int typeflag, struct FT
 }
 
 int
-copy_dir() {
-    printf("Copying following Files:\n");
-    // copy directory and its content
-    nftw(source_dir, copy_path_func, 64, FTW_PHYS);
-    return -1;
-}
-
-int
-move_dir() {
-    printf("-mv");
-    // move directory and its content
-    // print a list of moved files, maybe?
-    return -1;
+del_callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+    rmdir(fpath);
+    return 0;
 }
 
 int
 main(int argc, char* argv[]) {
 
     // Check arguments and assign its values
-    if (init(argc, argv) == -1) {
+    if (get_arguments(argc, argv) == -1) {
         exit(1);
     }
 
@@ -201,15 +221,24 @@ main(int argc, char* argv[]) {
     // Check the option and perform tasks accordingly
     switch (option) {
         case OPTION_COPY:
-            if (copy_dir() == -1) {
+            printf("Copying following Files:\n");
+            if (nftw(source_dir, callback_func, 64, FTW_PHYS) == -1) {
+                write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
                 exit(1);
             }
+            break;
         case OPTION_MOVE:
-            if (move_dir() == -1) {
+            printf("Moving following Files:\n");
+            if (nftw(source_dir, callback_func, 64, FTW_PHYS) == -1) {
+                write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
                 exit(1);
             }
+            nftw(source_dir, del_callback_func, 64, FTW_PHYS);
+            nftw(destination_dir, del_callback_func, 64, FTW_PHYS);
+            break;
         default: break;
     }
 
+    printf("Operation Successful.\n");
     return 0;
 }
