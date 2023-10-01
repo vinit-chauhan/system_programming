@@ -226,6 +226,8 @@ main(int argc, char* argv[]) {
                 write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
                 exit(1);
             }
+            // Clean up the destination directory
+            nftw(destination_dir, del_callback_func, 64, FTW_DEPTH);
             break;
         case OPTION_MOVE:
             printf("Moving following Files:\n");
@@ -233,8 +235,10 @@ main(int argc, char* argv[]) {
                 write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
                 exit(1);
             }
-            nftw(source_dir, del_callback_func, 64, FTW_PHYS);
-            nftw(destination_dir, del_callback_func, 64, FTW_PHYS);
+
+            // Clean up the source and destination directory
+            nftw(source_dir, del_callback_func, 64, FTW_DEPTH);
+            nftw(destination_dir, del_callback_func, 64, FTW_DEPTH);
             break;
         default: break;
     }
