@@ -1,0 +1,76 @@
+// Name: Vinit Hemantbhai Chauhan
+// Std ID: 110123359
+// Lab 2
+
+#include <fcntl.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+int
+main() {
+    // create a file descriptor
+    int fd;
+
+    //  set umask
+    umask(0000);
+
+    // Create Sample.txt with permission 0777 and print error if unable to create
+    if (fd = open("sample.txt", O_CREAT, 0777) == -1) {
+        printf("Error opening file\n");
+        exit(1);
+    }
+
+    // close the file
+    close(fd);
+
+    // open sample.txt in read/write mode
+    if (fd = open("sample.txt", O_RDWR) == -1) {
+        printf("Error opening file\n");
+        exit(1);
+    }
+
+    // Create 40 char string with all 'T's
+    char* all_ts_str = "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT";
+    // Write 'T's in the file.
+    write(fd, all_ts_str, 40);
+
+    // go to 10th position from start
+    lseek(fd, 10, SEEK_SET);
+    // Write 'COMP 8567' from 10th position
+    write(fd, "COMP 8567", 9);
+
+    // Move 10 position to right from current file descriptor
+    lseek(fd, 10, SEEK_CUR);
+    write(fd, "ASP", 3);
+
+    // go to 15 position after the end of file.
+    lseek(fd, 15, SEEK_END);
+    write(fd, "University of Windsor", 21);
+
+    // Close the file.
+    close(fd);
+
+    if (fd = open("sample.txt", O_RDWR) == -1) {
+        printf("Error opening file\n");
+        exit(1);
+    }
+
+    // go to start of the file
+    lseek(fd, 0, SEEK_SET);
+    char* buffer = malloc(1 * sizeof(char));
+
+    // Replace NULL with space.
+    lseek(fd, 0, SEEK_SET);
+    // Read one byte from the file, and check if null then replace it with #
+    while (read(fd, buffer, 1) != 0) {
+        lseek(fd, -1, SEEK_CUR);
+        (buffer[0] == NULL) ? write(fd, "#", 1) : write(fd, buffer, 1);
+    }
+
+    close(fd);
+    return 0;
+}
