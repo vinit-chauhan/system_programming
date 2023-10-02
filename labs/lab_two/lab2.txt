@@ -54,7 +54,7 @@ main() {
     // Close the file.
     close(fd);
 
-    if (fd = open("data/sample.txt", O_WRONLY) == -1) {
+    if (fd = open("data/sample.txt", O_RDWR) == -1) {
         printf("Error opening file\n");
         exit(1);
     }
