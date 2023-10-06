@@ -20,6 +20,7 @@ enum Options { OPTION_COPY = 0, OPTION_MOVE = 1, ERROR = -1 };
 int option = ERROR;
 int OUTPUT = STDOUT_FILENO;
 
+// Prints the manual page for users
 void
 print_manual(int output_fd) {
     char page[] = "Usage: dircpmvlist SOURCE DEST OPTIONS [EXTENSIONS]   \n\
@@ -39,6 +40,7 @@ Example:   \n\
     write(output_fd, page, sizeof(page));
 }
 
+// Get command line arguments and check for corner cases
 int
 get_arguments(int argc, char* argv[]) {
     // Check for number of arguments and throw error if not in range
@@ -54,9 +56,20 @@ get_arguments(int argc, char* argv[]) {
 
     // Parse command line arguments
     source_dir = argv[1];
-    destination_dir = argv[2];
+    // remove trailing '/'
+    if (source_dir[strlen(source_dir) - 1] == '/') {
+        source_dir[strlen(source_dir) - 1] = '\0';
+    }
 
-    option = (strcmp(argv[3], "-cp") == 0) ? OPTION_COPY : (strcmp(argv[3], "-mv") == 0 ? OPTION_MOVE : ERROR);
+    destination_dir = argv[2];
+    // remove trailing '/'
+    if (destination_dir[strlen(destination_dir) - 1] == '/') {
+        destination_dir[strlen(destination_dir) - 1] = '\0';
+    }
+
+    option = (strcmp(argv[3], "-cp") == 0)
+                 ? OPTION_COPY
+                 : (strcmp(argv[3], "-mv") == 0 ? OPTION_MOVE : ERROR);
 
     // check if options are valid
     if (option == -1) {
@@ -75,6 +88,7 @@ get_arguments(int argc, char* argv[]) {
     return 0;
 }
 
+// Check for file existence and its permissions
 int
 check_file_conditions() {
     // check if source directory exists
@@ -88,13 +102,15 @@ check_file_conditions() {
         mkdir(destination_dir, 0777);
     }
     if (access(destination_dir, W_OK) == -1) {
-        write(STDERR_FILENO, "[Error]: Destination directory is not writable.\n", 48);
+        write(STDERR_FILENO,
+              "[Error]: Destination directory is not writable.\n", 48);
         return -1;
     }
 
     // check if source file is readable
     if (access(source_dir, R_OK) == -1) {
-        write(STDERR_FILENO, "[Error]: Source directory is not readable.\n", 43);
+        write(STDERR_FILENO, "[Error]: Source directory is not readable.\n",
+              43);
     }
 
     // get path of home directory
@@ -102,14 +118,20 @@ check_file_conditions() {
     // check if source_dir belongs to home directory hierarchy
     char* abs_source_dir = realpath(source_dir, NULL);
     if (strncmp(abs_source_dir, home_dir, strlen(home_dir)) != 0) {
-        write(STDERR_FILENO, "[Error]: Source directory does not belong to home directory hierarchy.\n", 72);
+        write(STDERR_FILENO,
+              "[Error]: Source directory does not belong to home directory "
+              "hierarchy.\n",
+              72);
         return -1;
     }
 
     // check if destination_dir belongs to home directory hierarchy
     char* abs_destination_dir = realpath(destination_dir, NULL);
     if (strncmp(abs_destination_dir, home_dir, strlen(home_dir)) != 0) {
-        write(STDERR_FILENO, "[Error]: Destination directory does not belong to home directory hierarchy.\n", 77);
+        write(STDERR_FILENO,
+              "[Error]: Destination directory does not belong to home "
+              "directory hierarchy.\n",
+              77);
         return -1;
     }
 }
@@ -125,6 +147,7 @@ extract_name(const char* path) {
     return name;
 }
 
+// copy file content to another file.
 int
 do_copy(const char* src, char* dest, mode_t mode) {
     int fd_src = open(src, O_RDONLY);
@@ -146,6 +169,7 @@ do_copy(const char* src, char* dest, mode_t mode) {
     return 0;
 }
 
+// function for working (copy/move) on a file
 int
 do_operation(const char* fpath, char* dest_path, const struct stat* sb) {
     printf("Working on: %s\n", fpath);
@@ -162,7 +186,8 @@ do_operation(const char* fpath, char* dest_path, const struct stat* sb) {
 }
 
 int
-callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+callback_func(const char* fpath, const struct stat* sb, int typeflag,
+              struct FTW* ftwbuf) {
     relative_source_path = (char*)(fpath + strlen(source_dir));
     char* dest_path = strcpy(malloc(sizeof(char) * 256), destination_dir);
     strcat(dest_path, relative_source_path);
@@ -177,7 +202,8 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW
             ;
         strcpy(ext, dest_path + i + 1);
 
-        if (extension_count == 0) {
+        if (extension_count
+            == 0) { // If no extensions are provided, copy all the files.
             if (do_operation(fpath, dest_path, sb) == -1) {
                 write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
             }
@@ -186,7 +212,8 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW
             for (int i = 0; i < extension_count; i++) {
                 if (strcmp(ext, extensions[i]) == 0) {
                     if (do_operation(fpath, dest_path, sb) == -1) {
-                        write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
+                        write(STDERR_FILENO, "[Error]: Could not copy files.\n",
+                              31);
                     }
                     break;
                 }
@@ -200,7 +227,8 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW
 }
 
 int
-del_callback_func(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+del_callback_func(const char* fpath, const struct stat* sb, int typeflag,
+                  struct FTW* ftwbuf) {
     rmdir(fpath);
     return 0;
 }
