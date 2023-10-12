@@ -55,13 +55,17 @@ get_arguments(int argc, char* argv[]) {
     }
 
     // Parse command line arguments
-    source_dir = argv[1];
+    source_dir = malloc(sizeof(char) * strlen(argv[1]));
+    strcpy(source_dir, argv[1]);
+
     // remove trailing '/'
     if (source_dir[strlen(source_dir) - 1] == '/') {
         source_dir[strlen(source_dir) - 1] = '\0';
     }
 
-    destination_dir = argv[2];
+    destination_dir = malloc(sizeof(char) * strlen(argv[2]));
+    strcpy(destination_dir, argv[2]);
+
     // remove trailing '/'
     if (destination_dir[strlen(destination_dir) - 1] == '/') {
         destination_dir[strlen(destination_dir) - 1] = '\0';
@@ -99,7 +103,29 @@ check_file_conditions() {
 
     // check if destination already exist or not
     if (access(destination_dir, F_OK) == -1) {
-        mkdir(destination_dir, 0777);
+        if (mkdir(destination_dir, 0777) == -1) {
+            write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
+            return -1;
+        }
+    }
+    if (access(destination_dir, W_OK) == -1) {
+        write(STDERR_FILENO,
+              "[Error]: Destination directory is not writable.\n", 48);
+        return -1;
+    }
+
+    char* last_dir;
+    // last directory from the source
+    for (int i = strlen(source_dir); i > 0; i--) {
+        if (source_dir[i] == '/') {
+            last_dir = source_dir + i;
+            break;
+        }
+    }
+
+    if (mkdir(strcat(destination_dir, last_dir), 0777) == -1) {
+        write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
+        return -1;
     }
     if (access(destination_dir, W_OK) == -1) {
         write(STDERR_FILENO,
@@ -111,6 +137,7 @@ check_file_conditions() {
     if (access(source_dir, R_OK) == -1) {
         write(STDERR_FILENO, "[Error]: Source directory is not readable.\n",
               43);
+        return -1;
     }
 
     // get path of home directory
@@ -192,6 +219,10 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag,
     char* dest_path = strcpy(malloc(sizeof(char) * 256), destination_dir);
     strcat(dest_path, relative_source_path);
 
+    if (strlen(relative_source_path) == 0) {
+        return 0;
+    }
+
     // If its a file and extension is in the list of extensions, copy the file
     if (typeflag == FTW_F) {
         char ext[8];
@@ -207,7 +238,6 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag,
             if (do_operation(fpath, dest_path, sb) == -1) {
                 write(STDERR_FILENO, "[Error]: Could not copy files.\n", 31);
             }
-
         } else { //  Check if the extension is in the list of extensions
             for (int i = 0; i < extension_count; i++) {
                 if (strcmp(ext, extensions[i]) == 0) {
@@ -227,9 +257,21 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag,
 }
 
 int
+cleanup_callback_func(const char* fpath, const struct stat* sb, int typeflag,
+                      struct FTW* ftwbuf) {
+    rmdir(fpath);
+    return 0;
+}
+
+int
 del_callback_func(const char* fpath, const struct stat* sb, int typeflag,
                   struct FTW* ftwbuf) {
-    rmdir(fpath);
+    if (typeflag == FTW_D || typeflag == FTW_DP) {
+        rmdir(fpath);
+    } else if (typeflag == FTW_F) {
+        remove(fpath);
+    }
+
     return 0;
 }
 
@@ -255,7 +297,7 @@ main(int argc, char* argv[]) {
                 exit(1);
             }
             // Clean up the destination directory
-            nftw(destination_dir, del_callback_func, 64, FTW_DEPTH);
+            nftw(destination_dir, cleanup_callback_func, 64, FTW_DEPTH);
             break;
         case OPTION_MOVE:
             printf("Moving following Files:\n");
@@ -264,9 +306,18 @@ main(int argc, char* argv[]) {
                 exit(1);
             }
 
-            // Clean up the source and destination directory
-            nftw(source_dir, del_callback_func, 64, FTW_DEPTH);
-            nftw(destination_dir, del_callback_func, 64, FTW_DEPTH);
+            // Clean up the destination directory
+            if (nftw(destination_dir, cleanup_callback_func, 64, FTW_DEPTH)
+                == -1) {
+                write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
+                exit(1);
+            }
+
+            // remove source directory
+            if (nftw(source_dir, del_callback_func, 64, FTW_DEPTH) == -1) {
+                write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
+                exit(1);
+            }
             break;
         default: break;
     }
