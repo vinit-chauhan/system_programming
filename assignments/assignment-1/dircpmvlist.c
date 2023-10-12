@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
-char *source_dir, *destination_dir, *relative_source_path;
+char *source_dir, *destination_dir, *relative_source_path, *home_dir;
 char** extensions;
 int extension_count = 0;
 
@@ -63,7 +63,7 @@ get_arguments(int argc, char* argv[]) {
         source_dir[strlen(source_dir) - 1] = '\0';
     }
 
-    destination_dir = malloc(sizeof(char) * strlen(argv[2]));
+    destination_dir = malloc(sizeof(char) * 1024);
     strcpy(destination_dir, argv[2]);
 
     // remove trailing '/'
@@ -92,25 +92,27 @@ get_arguments(int argc, char* argv[]) {
     return 0;
 }
 
+int
+create_directories(char* path) {
+    char temp[1024] = "";
+
+    for (int i = strlen(home_dir) + 1; i < strlen(destination_dir); i++) {
+        if (destination_dir[i] == '/') {
+            memcpy(temp, destination_dir, i);
+            temp[i + 1] = '\0';
+            mkdir(temp, 0777);
+        }
+    }
+
+    return mkdir(destination_dir, 0777);
+}
+
 // Check for file existence and its permissions
 int
 check_file_conditions() {
     // check if source directory exists
     if (access(source_dir, F_OK) == -1) {
         write(STDERR_FILENO, "[Error]: Source directory does not exist.\n", 42);
-        return -1;
-    }
-
-    // check if destination already exist or not
-    if (access(destination_dir, F_OK) == -1) {
-        if (mkdir(destination_dir, 0777) == -1) {
-            write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
-            return -1;
-        }
-    }
-    if (access(destination_dir, W_OK) == -1) {
-        write(STDERR_FILENO,
-              "[Error]: Destination directory is not writable.\n", 48);
         return -1;
     }
 
@@ -123,9 +125,15 @@ check_file_conditions() {
         }
     }
 
-    if (mkdir(strcat(destination_dir, last_dir), 0777) == -1) {
-        write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
-        return -1;
+    strcat(destination_dir, last_dir);
+
+    // check if destination already exist or not
+    if (access(destination_dir, F_OK) == -1) {
+        // create destination directory
+        if (create_directories(destination_dir) == -1) {
+            write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
+            return -1;
+        }
     }
     if (access(destination_dir, W_OK) == -1) {
         write(STDERR_FILENO,
@@ -140,8 +148,6 @@ check_file_conditions() {
         return -1;
     }
 
-    // get path of home directory
-    char* home_dir = getenv("HOME");
     // check if source_dir belongs to home directory hierarchy
     char* abs_source_dir = realpath(source_dir, NULL);
     if (strncmp(abs_source_dir, home_dir, strlen(home_dir)) != 0) {
@@ -277,6 +283,9 @@ del_callback_func(const char* fpath, const struct stat* sb, int typeflag,
 
 int
 main(int argc, char* argv[]) {
+
+    // get path of home directory
+    home_dir = getenv("HOME");
 
     // Check arguments and assign its values
     if (get_arguments(argc, argv) == -1) {
