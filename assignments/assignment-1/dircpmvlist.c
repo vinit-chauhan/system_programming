@@ -1,6 +1,6 @@
 // Name: Vinit Hemantbhai Chauhan
 // Student Id: 110123359
-// Assignment 1 : Section 2
+// Assignment 1 : Section 1
 
 #define _XOPEN_SOURCE 500
 
@@ -35,8 +35,8 @@ Extensions: (Upto 6 extensions)     \n\
     ex. -cp .txt .pdf .docx \n\
     \n\
 Example:   \n\
-    $ dircpmvlist /home/user/Downloads /home/user/Documents -cp .txt .pdf .docx \n\
-    $ dircpmvlist /home/user/Downloads /home/user/Documents -mv .txt .pdf .docx \n";
+    $ dircpmvlist /home/user/source /home/user/destination -cp .txt .pdf .docx \n\
+    $ dircpmvlist /home/user/source /home/user/destination -mv .txt .pdf .docx \n";
 
     write(output_fd, page, sizeof(page));
 }
@@ -59,7 +59,7 @@ get_arguments(int argc, char* argv[]) {
     source_dir = malloc(sizeof(char) * strlen(argv[1]));
     strcpy(source_dir, argv[1]);
 
-    // remove trailing '/'
+    // remove trailing '/' from source path
     if (source_dir[strlen(source_dir) - 1] == '/') {
         source_dir[strlen(source_dir) - 1] = '\0';
     }
@@ -67,7 +67,7 @@ get_arguments(int argc, char* argv[]) {
     destination_dir = malloc(sizeof(char) * 1024);
     strcpy(destination_dir, argv[2]);
 
-    // remove trailing '/'
+    // remove trailing '/' from destination path
     if (destination_dir[strlen(destination_dir) - 1] == '/') {
         destination_dir[strlen(destination_dir) - 1] = '\0';
     }
