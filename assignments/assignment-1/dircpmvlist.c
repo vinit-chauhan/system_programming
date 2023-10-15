@@ -1,5 +1,6 @@
 // Name: Vinit Hemantbhai Chauhan
 // Student Id: 110123359
+// Assignment 1 : Section 2
 
 #define _XOPEN_SOURCE 500
 
@@ -92,6 +93,7 @@ get_arguments(int argc, char* argv[]) {
     return 0;
 }
 
+// Create multiple directories
 int
 create_directories(char* path) {
     char temp[1024] = "";
@@ -129,7 +131,7 @@ check_file_conditions() {
 
     // check if destination already exist or not
     if (access(destination_dir, F_OK) == -1) {
-        // create destination directory
+        // create destination directories
         if (create_directories(destination_dir) == -1) {
             write(STDERR_FILENO, "[Error]: Can't create directory\n", 32);
             return -1;
@@ -169,7 +171,7 @@ check_file_conditions() {
     }
 }
 
-//  Extract File name from the path
+//  Extract File/directory name from the end of the path
 char*
 extract_name(const char* path) {
     char* name = malloc(sizeof(char) * 256);
@@ -218,6 +220,7 @@ do_operation(const char* fpath, char* dest_path, const struct stat* sb) {
     return 0;
 }
 
+// Callback function for nftw function which will perform copy or move based on option.
 int
 callback_func(const char* fpath, const struct stat* sb, int typeflag,
               struct FTW* ftwbuf) {
@@ -262,6 +265,7 @@ callback_func(const char* fpath, const struct stat* sb, int typeflag,
     return 0;
 }
 
+// callback function which removes empty directories
 int
 cleanup_callback_func(const char* fpath, const struct stat* sb, int typeflag,
                       struct FTW* ftwbuf) {
@@ -269,12 +273,14 @@ cleanup_callback_func(const char* fpath, const struct stat* sb, int typeflag,
     return 0;
 }
 
+// callback function which delete all the files and folders
 int
 del_callback_func(const char* fpath, const struct stat* sb, int typeflag,
                   struct FTW* ftwbuf) {
+    // remove traversed directories FTW_DP and regular directories FTW_D
     if (typeflag == FTW_D || typeflag == FTW_DP) {
         rmdir(fpath);
-    } else if (typeflag == FTW_F) {
+    } else if (typeflag == FTW_F) { // remove files
         remove(fpath);
     }
 
@@ -306,7 +312,12 @@ main(int argc, char* argv[]) {
                 exit(1);
             }
             // Clean up the destination directory
-            nftw(destination_dir, cleanup_callback_func, 64, FTW_DEPTH);
+            if (nftw(destination_dir, cleanup_callback_func, 64, FTW_DEPTH)
+                == -1) {
+                write(STDERR_FILENO,
+                      "[Error]: Could cleanup destination directory.\n", 31);
+                exit(1);
+            }
             break;
         case OPTION_MOVE:
             printf("Moving following Files:\n");
@@ -318,13 +329,15 @@ main(int argc, char* argv[]) {
             // Clean up the destination directory
             if (nftw(destination_dir, cleanup_callback_func, 64, FTW_DEPTH)
                 == -1) {
-                write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
+                write(STDERR_FILENO,
+                      "[Error]: Could cleanup destination directory.\n", 31);
                 exit(1);
             }
 
             // remove source directory
             if (nftw(source_dir, del_callback_func, 64, FTW_DEPTH) == -1) {
-                write(STDERR_FILENO, "[Error]: Could not move files.\n", 31);
+                write(STDERR_FILENO,
+                      "[Error]: Could not remove source directory.\n", 31);
                 exit(1);
             }
             break;
