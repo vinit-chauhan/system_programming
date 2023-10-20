@@ -1,0 +1,76 @@
+I'll provide an explanation of the arguments, return types, and different return conditions for the specified system calls and macros:
+
+**System Calls:**
+
+1. `open()` system call:
+   - Arguments: `const char *pathname`, `int flags`, `mode_t mode`.
+   - Return Type: `int` (file descriptor).
+   - Return Conditions: Returns a non-negative file descriptor on success or -1 on failure, setting `errno` to indicate the error.
+
+2. `read()` system call:
+   - Arguments: `int fd`, `void *buf`, `size_t count`.
+   - Return Type: `ssize_t` (number of bytes read).
+   - Return Conditions: Returns the number of bytes read on success, 0 if end-of-file is reached, or -1 on error, setting `errno` accordingly.
+
+3. `write()` system call:
+   - Arguments: `int fd`, `const void *buf`, `size_t count`.
+   - Return Type: `ssize_t` (number of bytes written).
+   - Return Conditions: Returns the number of bytes written on success or -1 on error, setting `errno` as appropriate.
+
+4. `lseek()` system call:
+   - Arguments: `int fd`, `off_t offset`, `int whence`.
+   - Return Type: `off_t` (new file offset).
+   - Return Conditions: Returns the new file offset on success or -1 on error.
+
+5. `close()` system call:
+   - Arguments: `int fd`.
+   - Return Type: `int`.
+   - Return Conditions: Returns 0 on success, -1 on failure.
+
+6. `fork()` system call:
+   - No arguments.
+   - Return Type: `pid_t` (child process ID in the parent, 0 in the child, -1 on failure).
+   - Return Conditions: Returns the child's process ID in the parent process, 0 in the child process, and -1 on failure.
+
+7. `exit()` system call:
+   - Argument: `int status`.
+   - No return value.
+   - Always terminates the calling process.
+
+8. `wait()` system call:
+   - Argument: `int *status`.
+   - Return Type: `pid_t` (child process ID).
+   - Return Conditions: Returns the child's process ID on success or -1 on failure.
+
+9. `waitpid()` system call:
+   - Arguments: `pid_t pid`, `int *status`, `int options`.
+   - Return Type: `pid_t` (child process ID).
+   - Return Conditions: Returns the child's process ID on success or -1 on failure.
+
+10. `exec()` family of system calls (e.g., `execv()`, `execvp()`, `execl()`, `execlp()`):
+    - Arguments vary based on the specific function but generally include the program name and command-line arguments.
+    - Return Type: These functions do not return if successful. They replace the current process with a new program. If there's an error, they return -1, setting `errno` accordingly.
+
+**Macros:**
+
+1. `WIFEXITED(status)`:
+   - Argument: `int status` (typically the status returned by `wait()` or `waitpid()`).
+   - Return Type: `int` (true or false).
+   - Return Conditions: Returns true if the child process terminated normally by calling `exit()` or similar, and false if not.
+
+2. `WEXITSTATUS(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (exit status).
+   - Return Conditions: Returns the exit status of a child process that has terminated normally. Only meaningful if `WIFEXITED(status)` is true.
+
+3. `WIFSIGNALED(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (true or false).
+   - Return Conditions: Returns true if the child process was terminated due to a signal, and false if not.
+
+4. `WTERMSIG(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (signal number).
+   - Return Conditions: Returns the signal number that caused the termination of the child process. Only meaningful if `WIFSIGNALED(status)` is true.
+
+These system calls and macros are essential for process management, file I/O, and handling the exit status and termination conditions of child processes in Unix-like operating systems.
