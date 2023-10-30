@@ -4,22 +4,22 @@
 int
 main() {
 
-    int pid;
-    if ((pid = fork()) == -1) {
+    int pid1, pid2;
+    if ((pid1 = fork()) == -1) {
         perror("fork");
         return 1;
     }
-    if ((pid = fork()) == -1) {
+    if ((pid2 = fork()) == -1) {
         perror("fork");
         return 1;
     }
 
-    if (pid == 0) {
-        printf("exiting child pid: %d, PPID: %d\n", getpid(), getppid());
-    } else {
+    if (pid1 != 0 && pid2 != 0) {
         printf("parent pid: %d, ppid: %d\n", getpid(), getppid());
         for (;;)
             ;
+    } else {
+        printf("exiting child pid: %d, PPID: %d\n", getpid(), getppid());
     }
 
     return 0;
