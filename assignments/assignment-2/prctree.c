@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 static int OUTPUT = STDOUT_FILENO;
+static int MAX_BUFFER_SIZE = 1024;
 
 void
 user_manual() {
@@ -109,7 +110,7 @@ get_stat_from_pid(int pid, int stat_type) {
 
     int stat_fd = open(stat_path, O_RDONLY);
     if (stat_fd == -1) {
-        return 0;
+        return NULL;
     }
 
     if ((rbyte = read(stat_fd, buf, 64)) == -1) {
@@ -131,19 +132,38 @@ is_child(int pid, int ppid) {
 
     int stat_fd = open(stat_path, O_RDONLY);
     if (stat_fd == -1) {
-        return 0;
+        return -1;
     }
 
     int cur_ppid = atoi(get_stat(&stat_fd, PPID));
     close(stat_fd);
 
     if (cur_ppid == ppid) {
-        return 1;
-    } else if (cur_ppid < ppid) {
         return 0;
+    } else if (cur_ppid < ppid) {
+        return -1;
     } else {
         return is_child(cur_ppid, ppid);
     }
+}
+
+char*
+run(char* cmd) {
+    char buffer[MAX_BUFFER_SIZE];
+    printf("cmd: %s\n", cmd);
+
+    FILE* fp = popen(cmd, "r");
+    if (fp == NULL) {
+        perror("popen");
+        exit(1);
+    }
+
+    while (fgets(buffer, 1024, fp) != NULL) {
+        buffer[strlen(buffer) - 1] = '\0';
+        printf("%s ", buffer);
+    }
+    printf("\n");
+    pclose(fp);
 }
 
 int
@@ -161,7 +181,7 @@ main(int argc, char* argv[]) {
 
     for (int i = 2, j = 0; i < argc; i++) {
         int cur_pid = atoi(argv[i]);
-        if (is_child(cur_pid, root_pid)) {
+        if (is_child(cur_pid, root_pid) == 0) {
             pids[j] = cur_pid;
             j++;
             pid_count++;
@@ -169,7 +189,6 @@ main(int argc, char* argv[]) {
     }
 
     char* option = argv[argc - 1];
-    printf("option:%s, %d\n", option, strcmp(option, "-id"));
 
     // print pid and ppid of the all the processes
     for (int i = 0; i < pid_count; i++) {
@@ -177,57 +196,28 @@ main(int argc, char* argv[]) {
                get_stat_from_pid(pids[i], PPID));
     }
 
+    // Create chat arrays for command and output buffer
+    char cmd[MAX_BUFFER_SIZE];
+
     if (strcmp(option, "-dn") == 0) {
 
     } else if (strcmp(option, "-id") == 0) {
-        int pid = pids[0];
-        char cmd[1024], buffer[1024];
-
         sprintf(cmd,
                 "pstree -p %d | grep -Eo '([0-9]\+)' | grep -v \"%d\" | sed "
                 "'s/[()]//g'",
-                pid, pid);
-
-        FILE* fp = popen(cmd, "r");
-        if (fp == NULL) {
-            perror("popen");
-            exit(1);
-        }
-
-        while (fgets(buffer, 1024, fp) != NULL) {
-            buffer[strlen(buffer) - 1] = '\0';
-            printf("%s ", buffer);
-        }
-        printf("\n");
-
-        pclose(fp);
+                pids[0], pids[0]);
+        run(cmd);
 
         // "- lp" additionally lists the PIDs of all the sibling processes of process_id1
     } else if (strcmp(option, "-lp") == 0) {
         int ppid = atoi(get_stat_from_pid(pids[0], PPID));
-        char cmd[1024], buffer[1024];
-
         sprintf(cmd, "pgrep -P %d -d \" \" | grep -v \"%d\" | sed 's/[()]//g'",
                 ppid, ppid);
-
-        printf("cmd: %s\n", cmd);
-
-        FILE* fp = popen(cmd, "r");
-        if (fp == NULL) {
-            perror("popen");
-            exit(1);
-        }
-
-        while (fgets(buffer, 1024, fp) != NULL) {
-            buffer[strlen(buffer) - 1] = '\0';
-            printf("%s ", buffer);
-        }
-        printf("\n");
-        pclose(fp);
-
-        //  pgrep -P PPID_HERE -d " "
+        run(cmd);
 
     } else if (strcmp(option, "-sz") == 0) {
+        sprintf(cmd, "pgrep -P %d -r Z -d \" \"", pids[0]);
+        run(cmd);
 
     } else if (strcmp(option, "-gp") == 0) {
 
