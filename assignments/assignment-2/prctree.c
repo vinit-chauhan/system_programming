@@ -176,103 +176,81 @@ run(char* cmd, int print) {
 
 int
 main(int argc, char* argv[]) {
-
     // check if the number of arguments are correct
-    if (argc > 9 || argc < 2) {
+    if (argc > 9 || argc < 3) {
         user_manual();
         return 0;
     }
 
-    int* pids;
-    int pid_count = 0, root_pid = atoi(argv[1]);
-    pids = malloc(sizeof(int) * (argc - 2));
+    int pid_count = 0;
+    int root_pid = atoi(argv[1]);
+    int* pids = malloc(sizeof(int) * (argc - 2));
+    // Create chat arrays for command and output buffer
+    char cmd[MAX_BUFFER_SIZE];
 
+    // stores list of pids from command line arguments to an array
     for (int i = 2, j = 0; i < argc; i++) {
         int cur_pid = atoi(argv[i]);
         if (is_child(cur_pid, root_pid) == 0) {
             pids[j] = cur_pid;
             j++;
-            pid_count++;
         }
+        pid_count++;
+    }
+    if (atoi(argv[argc - 1]) == 0) {
+        pid_count--;
     }
 
+    // check if the number of pids are more than 1 and less then 7
     if (pid_count > 6 || pid_count < 1) {
+        printf("Invalid number of PIDs %d\n", pid_count);
         user_manual();
         return 0;
     }
 
+    // fetch the option from the command line arguments
     char* option = argv[argc - 1];
 
     // print pid and ppid of the all the processes
     for (int i = 0; i < pid_count; i++) {
-        printf("pid: %s, ppid: %s\n", get_stat_from_pid(pids[i], PID),
-               get_stat_from_pid(pids[i], PPID));
+        printf("%d %s\n", pids[i], get_stat_from_pid(pids[i], PPID));
     }
 
-    // Create chat arrays for command and output buffer
-    char cmd[MAX_BUFFER_SIZE];
-
     if (strcmp(option, "-dn") == 0) {
-        // - dn additionally lists the PIDs of all the non-direct descendants of process_id1 (only)
-        //         pgrep -P PPID -d " "
-        sprintf(cmd, "pgrep -P %d -d \" \"", pids[0]);
-        char* token;
-        token = strtok(run(cmd, -1), " ");
-        while (token != NULL) {
-            int pid = atoi(token);
-            sprintf(cmd, "pstree -p %d | grep -Eo '([0-9]\+)' | grep -v \"%d\"",
-                    pid, pid);
+        // Prints additionally lists the PIDs of all the non-direct descendants of process_id1 (only)
+        sprintf(cmd, "pgrep -P %d -d \"|\"", pids[0]);
+        char* buff = run(cmd, -1);
+        sprintf(cmd, "pstree -p %d | grep -Eo '([0-9]+)' | grep -Ev \"%d|%s\"",
+                pids[0], pids[0], buff);
 
-            run(cmd, 0);
-
-            token = strtok(NULL, " ");
-        }
+        run(cmd, 0);
 
     } else if (strcmp(option, "-id") == 0) {
-        // - id additionally lists the PIDs of all the immediate descendants of process_id1
-        sprintf(cmd,
-                "pstree -p %d | grep -Eo '([0-9]\+)' | grep -v \"%d\" | sed "
-                "'s/[()]//g'",
-                pids[0], pids[0]);
+        // Prints a list of the PIDs of all the immediate descendants of process_id1
+        sprintf(cmd, "pgrep -P %d -d \" \" | grep -v \"%d\"", pids[0], pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-lp") == 0) {
         // "- lp" additionally lists the PIDs of all the sibling processes of process_id1
         int ppid = atoi(get_stat_from_pid(pids[0], PPID));
-        sprintf(cmd, "pgrep -P %d -d \" \" | grep -v \"%d\" | sed 's/[()]//g'",
-                ppid, ppid);
+        sprintf(cmd, "pgrep -P %d | grep -v \"%d\" | sed 's/[()]//g'", ppid,
+                pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-sz") == 0) {
         // - sz additionally Lists the PIDs of all sibling processes of process_id1 that are defunct
-        //         pgrep -P PPID_HERE -r Z -d " "
-        sprintf(cmd, "pgrep -P %d -r Z -d \" \"", pids[0]);
+        int ppid = atoi(get_stat_from_pid(pids[0], PPID));
+        sprintf(cmd, "pgrep -P %d -r Z -d \" \"", ppid);
         run(cmd, 0);
 
     } else if (strcmp(option, "-gp") == 0) {
         // - gp additionally lists the PIDs of all the grandchildren of process_id1
-        sprintf(cmd, "pgrep -P %d -d \" \"", pids[0]);
-        char* token;
-        int buff[1024];
-        int token_count = 0;
-        token = strtok(run(cmd, -1), " ");
-        for (int i = 0; i < 1024 || token != NULL; i++) {
-            buff[i] = atoi(token);
-            token_count++;
-            token = strtok(NULL, " ");
-        }
-
-        for (int i = 0; i < token_count; i++) {
-            printf("buff: %d, i: %d\n", buff[i], i);
-            sprintf(cmd, "pgrep -P %d -d \" \"", buff[i]);
-
-            run(cmd, 0);
-
-            // token = strtok(NULL, " ");
-        }
+        sprintf(cmd, "pgrep -P %d | xargs -I {} pgrep -P {} | tr '\\n' ' '",
+                pids[0]);
+        run(cmd, 0);
 
     } else if (strcmp(option, "-zz") == 0) {
-        // - zz additionally prints the status of process_id1(Defunct / Not Defunct)
+        // Prints the if the process_id1 is Defunct or Not Defunct
         char* state = get_stat_from_pid(pids[0], STATE);
         if (strcmp(state, "Z") == 0) {
             printf("Defunct\n");
@@ -280,22 +258,18 @@ main(int argc, char* argv[]) {
             printf("Not Defunct\n");
         }
     } else if (strcmp(option, "-zc") == 0) {
-        // Prints the lists the PIDs of all the direct descendants of process_id1 that are currently in the defunct state
+        // Prints the list of PIDs that are in defunct state and direct descendants of process_id1
         sprintf(cmd,
                 "pgrep -P %d -r Z -d \" \" | grep -v \"%d\" | sed 's/[()]//g'",
                 pids[0], pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-zx") == 0) {
-        // Prints the list of PIDs of the direct descendants of process_id1..process_id[n] that are currently in the defunct state
+        // Prints the list of PIDs that are in defunct state which are direct descendants of process_id1..process_id[n]
         for (int i = 0; i < pid_count; i++) {
             sprintf(cmd, "pgrep -P %d -r Z -d \" \"", pids[i]);
             run(cmd, 0);
         }
-
-    } else {
-        user_manual();
-        return 0;
     }
 
     return 0;
