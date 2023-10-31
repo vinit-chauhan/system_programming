@@ -20,6 +20,20 @@ main() {
             ;
     } else {
         printf("exiting child pid: %d, PPID: %d\n", getpid(), getppid());
+        int pid = fork();
+        if (pid == 0) {
+            printf("parent pid: %d, ppid: %d\n", getpid(), getppid());
+            int pid = fork();
+            if (pid == 0) {
+                printf("parent pid: %d, ppid: %d\n", getpid(), getppid());
+
+            } else {
+                for (;;)
+                    ;
+            }
+        } else {
+            wait();
+        }
     }
 
     return 0;
