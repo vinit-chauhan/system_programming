@@ -11,8 +11,9 @@ void
 user_manual() {
     write(OUTPUT,
           "USAGE: prctree [root_process] [process_id1] [process_id2]… "
-          "[process_id(n)] [OPTION] \n",
-          85);
+          "[process_id(n)] [OPTION]\n",
+          86);
+    write(OUTPUT, "WHERE: 1 <= n <= 6\n", 19);
     write(OUTPUT, "OPTIONS: \n", 10);
     write(OUTPUT,
           "    - dn additionally lists the PIDs of all the non-direct "
@@ -195,6 +196,11 @@ main(int argc, char* argv[]) {
         }
     }
 
+    if (pid_count > 6 || pid_count < 1) {
+        user_manual();
+        return 0;
+    }
+
     char* option = argv[argc - 1];
 
     // print pid and ppid of the all the processes
@@ -214,8 +220,7 @@ main(int argc, char* argv[]) {
         token = strtok(run(cmd, -1), " ");
         while (token != NULL) {
             int pid = atoi(token);
-            sprintf(cmd,
-                    "pstree -p %d | grep -Eo '([0-9]\+)' | grep -v \"%d\" ",
+            sprintf(cmd, "pstree -p %d | grep -Eo '([0-9]\+)' | grep -v \"%d\"",
                     pid, pid);
 
             run(cmd, 0);
@@ -246,11 +251,28 @@ main(int argc, char* argv[]) {
 
     } else if (strcmp(option, "-gp") == 0) {
         // - gp additionally lists the PIDs of all the grandchildren of process_id1
-        //              pgrep -P LOOP_ALL_CHILD -d " "
+        sprintf(cmd, "pgrep -P %d -d \" \"", pids[0]);
+        char* token;
+        int buff[1024];
+        int token_count = 0;
+        token = strtok(run(cmd, -1), " ");
+        for (int i = 0; i < 1024 || token != NULL; i++) {
+            buff[i] = atoi(token);
+            token_count++;
+            token = strtok(NULL, " ");
+        }
+
+        for (int i = 0; i < token_count; i++) {
+            printf("buff: %d, i: %d\n", buff[i], i);
+            sprintf(cmd, "pgrep -P %d -d \" \"", buff[i]);
+
+            run(cmd, 0);
+
+            // token = strtok(NULL, " ");
+        }
 
     } else if (strcmp(option, "-zz") == 0) {
         // - zz additionally prints the status of process_id1(Defunct / Not Defunct)
-        //         use stat file to get the status of the process
         char* state = get_stat_from_pid(pids[0], STATE);
         if (strcmp(state, "Z") == 0) {
             printf("Defunct\n");
@@ -258,18 +280,14 @@ main(int argc, char* argv[]) {
             printf("Not Defunct\n");
         }
     } else if (strcmp(option, "-zc") == 0) {
-        // - zc additionally lists the PIDs of all the direct descendants of process_id1 that are currently in the defunct state
-        //         pgrep -P PID -r Z -d " "
+        // Prints the lists the PIDs of all the direct descendants of process_id1 that are currently in the defunct state
         sprintf(cmd,
                 "pgrep -P %d -r Z -d \" \" | grep -v \"%d\" | sed 's/[()]//g'",
                 pids[0], pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-zx") == 0) {
-        // - zx additionally lists the PIDs of the direct descendants of process_id1..process_id[n] that are currently in the defunct state
-        //   pstree PID -p | grep -oE '([0-9]+)' | grep -v PID :: for all ids
-        //      pgrep -P LOOP_PIDS -r Z -d " "             :: loop through all the pids
-
+        // Prints the list of PIDs of the direct descendants of process_id1..process_id[n] that are currently in the defunct state
         for (int i = 0; i < pid_count; i++) {
             sprintf(cmd, "pgrep -P %d -r Z -d \" \"", pids[i]);
             run(cmd, 0);
@@ -280,16 +298,5 @@ main(int argc, char* argv[]) {
         return 0;
     }
 
-    // ========================= TEST 1 =========================
-    // int p_fd = 64434, z_fd = 64435;
-
-    // printf("stat pid: %s, ppid: %s, mode: %s\n", get_stat(p_fd, PID),
-    //        get_stat(p_fd, PPID), get_stat(p_fd, STATE));
-
-    // printf("stat zombie pid: %s, ppid: %s, mode: %s\n", get_stat(z_fd, PID),
-    //        get_stat(z_fd, PPID), get_stat(z_fd, STATE));
-
     return 0;
 }
-
-// list all child of a process : pgrep -P 167161 -d " "
