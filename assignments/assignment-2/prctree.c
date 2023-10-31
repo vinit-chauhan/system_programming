@@ -52,11 +52,7 @@ user_manual() {
 
 enum StatType { PID = 0, STATE = 2, PPID = 3 };
 
-int
-char_to_int(char c) {
-    return (int)(c - '0');
-}
-
+// returns the next token from the string
 char*
 next_token(char* str, int* start) {
     if (*start >= strlen(str)) {
@@ -76,6 +72,7 @@ next_token(char* str, int* start) {
     return tmp;
 }
 
+// returns the token from the string at the given index
 char*
 get_token_from_index(char* str, int index) {
     int i = 0, cur_index = 0;
@@ -87,6 +84,7 @@ get_token_from_index(char* str, int index) {
     next_token(str, &i);
 }
 
+// returns the stat from the provided stat_fd file
 char*
 get_stat(int* stat_fd, int stat_type) {
     char buf[64];
@@ -101,6 +99,7 @@ get_stat(int* stat_fd, int stat_type) {
     return get_token_from_index(buf, stat_type);
 }
 
+// returns the stat from the /proc/[pid]/stat file
 char*
 get_stat_from_pid(int pid, int stat_type) {
     char buf[64];
@@ -125,6 +124,7 @@ get_stat_from_pid(int pid, int stat_type) {
     return get_token_from_index(buf, stat_type);
 }
 
+// checks if the given pid is a child of the given ppid
 int
 is_child(int pid, int ppid) {
 
@@ -148,6 +148,8 @@ is_child(int pid, int ppid) {
     }
 }
 
+// runs the given command and returns the output
+// additionally prints the output if print is 0
 char*
 run(char* cmd, int print) {
     int has_output = -1;
@@ -233,8 +235,7 @@ main(int argc, char* argv[]) {
     } else if (strcmp(option, "-lp") == 0) {
         // "- lp" additionally lists the PIDs of all the sibling processes of process_id1
         int ppid = atoi(get_stat_from_pid(pids[0], PPID));
-        sprintf(cmd, "pgrep -P %d | grep -v \"%d\" | sed 's/[()]//g'", ppid,
-                pids[0]);
+        sprintf(cmd, "pgrep -P %d | grep -v \"%d\"", ppid, pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-sz") == 0) {
@@ -245,7 +246,7 @@ main(int argc, char* argv[]) {
 
     } else if (strcmp(option, "-gp") == 0) {
         // - gp additionally lists the PIDs of all the grandchildren of process_id1
-        sprintf(cmd, "pgrep -P %d | xargs -I {} pgrep -P {} | tr '\\n' ' '",
+        sprintf(cmd, "pgrep -P %d | xargs -I C pgrep -P C | tr '\\n' ' '",
                 pids[0]);
         run(cmd, 0);
 
@@ -259,9 +260,8 @@ main(int argc, char* argv[]) {
         }
     } else if (strcmp(option, "-zc") == 0) {
         // Prints the list of PIDs that are in defunct state and direct descendants of process_id1
-        sprintf(cmd,
-                "pgrep -P %d -r Z -d \" \" | grep -v \"%d\" | sed 's/[()]//g'",
-                pids[0], pids[0]);
+        sprintf(cmd, "pgrep -P %d -r Z -d \" \" | grep -v \"%d\"", pids[0],
+                pids[0]);
         run(cmd, 0);
 
     } else if (strcmp(option, "-zx") == 0) {
