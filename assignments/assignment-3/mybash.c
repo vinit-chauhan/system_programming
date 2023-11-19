@@ -76,6 +76,50 @@ process_command(char* cmd, t_command* command) {
     }
 }
 
+void
+process_line(char* line, t_command* commands, int* operations,
+             int command_count) {
+    // parse the line and store the commands and operations
+    char* tmp = malloc(1024 * sizeof(char));
+    int flag = 0;
+    for (int i = 0, j = 0, start = 0; i < strlen(line); i++) {
+        if (line[i] == '|') {
+            operations[i] = PIPE;
+            if (line[i + 1] == '|') {
+                operations[i] = LOGICAL_OR;
+                i++;
+            }
+            flag = 1;
+        } else if (line[i] == '&') {
+            operations[i] = BACKGROUND;
+            if (line[i + 1] == '&') {
+                operations[i] = LOGICAL_AND;
+                i++;
+            }
+            flag = 1;
+        } else if (line[i] == ';') {
+            operations[i] = CHAIN;
+            flag = 1;
+        } else if (line[i] == '\0' || line[i] == '\n'
+                   || i == strlen(line) - 1) {
+            flag = 2;
+        }
+
+        if (flag == 1) {
+            memcpy(tmp, line + start, i - start);
+            tmp[i - start] = '\0';
+            commands[j].c_full_command = trim(tmp);
+            j++;
+            start = i + 1;
+            flag = 0;
+        } else if (flag == 2) {
+            memcpy(tmp, line + start, strlen(line) - start);
+            tmp[strlen(line) - start] = '\0';
+            commands[j].c_full_command = trim(tmp);
+        }
+    }
+}
+
 int
 main(int argc, char* argv[]) {
     int stdin_fd = dup(STDIN_FILENO);
@@ -99,7 +143,6 @@ main(int argc, char* argv[]) {
         if (strcmp(line, "exit\n") == 0) {
             break;
         }
-
         for (int i = 0; i < strlen(line); i++) {
             if (line[i] == '\n') {
                 line[i] = '\0';
@@ -118,45 +161,7 @@ main(int argc, char* argv[]) {
             operations[i] = NOOP;
         }
 
-        // parse the line and store the commands and operations
-        char* tmp = malloc(1024 * sizeof(char));
-        int flag = 0;
-        for (int i = 0, j = 0, start = 0; i < strlen(line); i++) {
-            if (line[i] == '|') {
-                operations[i] = PIPE;
-                if (line[i + 1] == '|') {
-                    operations[i] = LOGICAL_OR;
-                    i++;
-                }
-                flag = 1;
-            } else if (line[i] == '&') {
-                operations[i] = BACKGROUND;
-                if (line[i + 1] == '&') {
-                    operations[i] = LOGICAL_AND;
-                    i++;
-                }
-                flag = 1;
-            } else if (line[i] == ';') {
-                operations[i] = CHAIN;
-                flag = 1;
-            } else if (line[i] == '\0' || line[i] == '\n'
-                       || i == strlen(line) - 1) {
-                flag = 2;
-            }
-
-            if (flag == 1) {
-                memcpy(tmp, line + start, i - start);
-                tmp[i - start] = '\0';
-                commands[j].c_full_command = trim(tmp);
-                j++;
-                start = i + 1;
-                flag = 0;
-            } else if (flag == 2) {
-                memcpy(tmp, line + start, strlen(line) - start);
-                tmp[strlen(line) - start] = '\0';
-                commands[j].c_full_command = trim(tmp);
-            }
-        }
+        process_line(line, commands, operations, command_count);
 
         char* cmd = strtok(line, "|&&;");
         int i = 0;
