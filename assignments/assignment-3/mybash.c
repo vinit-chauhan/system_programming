@@ -25,14 +25,21 @@ enum command_sub_operation {
 typedef struct {
     char* c_full_command;
     char* c_args[4];
-    char c_name[32];
+    char* c_name;
     int c_argv;
+    char* c_redirection_file;
+    enum command_operation c_operation;
     enum command_sub_operation c_sub_operation;
 } t_command;
 
 #define INIT_COMMAND(t_command)                                                \
     t_command.c_argv = 0;                                                      \
-    t_command.c_sub_operation = NO_SUB_OP;
+    t_command.c_sub_operation = NO_SUB_OP;                                     \
+    t_command.c_operation = NOOP;                                              \
+    t_command.c_redirection_file = NULL;                                       \
+    t_command.c_full_command = NULL;                                           \
+    t_command.c_name = NULL;                                                   \
+    memset(t_command.c_args, 0, 4 * sizeof(char*));
 
 char*
 trim(char* str) {
@@ -51,34 +58,56 @@ trim(char* str) {
 }
 
 void
-process_command(char* cmd, t_command* command) {
-    char* tmp;
-    char* start = cmd;
-    for (int i = 0; i < strlen(cmd); i++) {
-        if (cmd[i] == ' ') {
-            memcpy(tmp, start, i);
-            start = cmd + i + 1;
-        }
-
-        if (cmd[i] == '\0') {
-            memcpy(tmp, start, i);
-            break;
-        }
-
-        if (cmd[i] == '<') {
-            command->c_sub_operation = REDIRECT_IN;
-        } else if (cmd[i] == '>') {
-            command->c_sub_operation = REDIRECT_OUT;
-            if (cmd[i + 1] == '>') {
-                command->c_sub_operation = REDIRECT_APPEND;
-            }
-        }
+print_command(t_command* command) {
+    printf("full command: %s\n", command->c_full_command);
+    printf("command name: %s\n", command->c_args[0]);
+    printf("command args: ");
+    for (int i = 0; i < command->c_argv; i++) {
+        printf("%s ", command->c_args[i]);
     }
+    printf("\n");
+    printf("command argv: %d\n", command->c_argv);
+    printf("command operation: %d\n", command->c_operation);
+    printf("command sub operation: %d\n", command->c_sub_operation);
 }
 
 void
-process_line(char* line, t_command* commands, int* operations,
-             int command_count) {
+process_command(t_command* command) {
+    char* cmd = strdup(command->c_full_command);
+    char* token = strtok(cmd, " ");
+    int count = 0;
+
+    while (token != NULL) {
+        command->c_args[count] = strdup(token);
+        count++;
+
+        if (strcmp(token, ">") == 0) {
+            command->c_sub_operation = REDIRECT_OUT;
+            token = strtok(NULL, " ");
+            command->c_redirection_file = token;
+            break;
+        } else if (strcmp(token, ">>") == 0) {
+            command->c_sub_operation = REDIRECT_APPEND;
+            token = strtok(NULL, " ");
+            command->c_redirection_file = token;
+            break;
+        } else if (strcmp(token, "<") == 0) {
+            command->c_sub_operation = REDIRECT_IN;
+            token = strtok(NULL, " ");
+            command->c_redirection_file = token;
+            break;
+        }
+        token = strtok(NULL, " ");
+    }
+    command->c_name = command->c_args[0];
+    command->c_args[count] = NULL;
+    command->c_argv = count;
+
+    print_command(command);
+}
+
+void
+process_line(char* line, t_command* commands, int* operations) {
     // parse the line and store the commands and operations
     char* tmp = malloc(1024 * sizeof(char));
     int flag = 0;
@@ -130,7 +159,7 @@ main(int argc, char* argv[]) {
     while (1) {
         t_command* commands;
         int* operations;
-        int command_count = 0;
+        int command_count = 1;
         size_t line_size = 0;
 
         char* token = malloc(1024 * sizeof(char));
@@ -161,16 +190,10 @@ main(int argc, char* argv[]) {
             operations[i] = NOOP;
         }
 
-        process_line(line, commands, operations, command_count);
+        process_line(line, commands, operations);
 
-        char* cmd = strtok(line, "|&&;");
-        int i = 0;
-        while (cmd != NULL) {
-            printf("commands[%d].c_full_command : %s\n", i,
-                   commands[i].c_full_command);
-            // process_command(cmd, &commands[i]);
-            cmd = strtok(NULL, "|&&;");
-            i++;
+        for (int i = 0; i < command_count; i++) {
+            process_command(&commands[i]);
         }
     }
     return 0;
