@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,27 +7,74 @@
 #include <unistd.h>
 
 enum command_operation {
-    SINGLE_COMMAND,
-    COMMAND_WITH_PIPE,
-    COMMAND_WITH_REDIRECT_IN,
-    COMMAND_WITH_REDIRECT_OUT,
-    COMMAND_WITH_REDIRECT_APPEND,
-    COMMAND_WITH_LOGICAL_AND,
-    COMMAND_WITH_LOGICAL_OR,
-    COMMAND_WITH_BACKGROUND,
-    COMMAND_WITH_SEMICOLON
+    NOOP,
+    PIPE,
+    LOGICAL_AND,
+    LOGICAL_OR,
+    BACKGROUND,
+    CHAIN
+};
+
+enum command_sub_operation {
+    NO_SUB_OP,
+    REDIRECT_IN,
+    REDIRECT_OUT,
+    REDIRECT_APPEND
 };
 
 typedef struct {
+    char* c_full_command;
     char* c_args[4];
     char c_name[32];
     int c_argv;
-    enum command_operation c_operation;
-} command;
+    enum command_sub_operation c_sub_operation;
+} t_command;
 
-#define INITIALIZE_COMMAND(command)                                            \
-    command.c_argv = 0;                                                        \
-    command.c_operation = SINGLE_COMMAND;
+#define INIT_COMMAND(t_command)                                                \
+    t_command.c_argv = 0;                                                      \
+    t_command.c_sub_operation = NO_SUB_OP;
+
+char*
+trim(char* str) {
+    char* start = str;
+    char* end = strlen(str) + str - 1;
+
+    while (*start == ' ') {
+        start++;
+    }
+    while (*end == ' ' || *end == '&' || *end == '|') {
+        end--;
+    }
+    *(end + 1) = '\0';
+
+    return strdup(start);
+}
+
+void
+process_command(char* cmd, t_command* command) {
+    char* tmp;
+    char* start = cmd;
+    for (int i = 0; i < strlen(cmd); i++) {
+        if (cmd[i] == ' ') {
+            memcpy(tmp, start, i);
+            start = cmd + i + 1;
+        }
+
+        if (cmd[i] == '\0') {
+            memcpy(tmp, start, i);
+            break;
+        }
+
+        if (cmd[i] == '<') {
+            command->c_sub_operation = REDIRECT_IN;
+        } else if (cmd[i] == '>') {
+            command->c_sub_operation = REDIRECT_OUT;
+            if (cmd[i + 1] == '>') {
+                command->c_sub_operation = REDIRECT_APPEND;
+            }
+        }
+    }
+}
 
 int
 main(int argc, char* argv[]) {
@@ -36,12 +84,11 @@ main(int argc, char* argv[]) {
     char* line = malloc(1024 * sizeof(char));
 
     while (1) {
-        command commands[3];
-        INITIALIZE_COMMAND(commands[0]);
-        INITIALIZE_COMMAND(commands[1]);
-        INITIALIZE_COMMAND(commands[2]);
+        t_command* commands;
+        int* operations;
         int command_count = 0;
         size_t line_size = 0;
+
         char* token = malloc(1024 * sizeof(char));
 
         printf("mybash$ {%d} : ", getpid());
@@ -53,129 +100,72 @@ main(int argc, char* argv[]) {
             break;
         }
 
-        token = strtok(line, " \n");
-        while (token != NULL) {
-            if (strcmp(token, "|") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_PIPE;
-                command_count++;
-            } else if (strcmp(token, "<") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_REDIRECT_IN;
-                command_count++;
-            } else if (strcmp(token, ">") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_REDIRECT_OUT;
-                command_count++;
-            } else if (strcmp(token, ">>") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation =
-                    COMMAND_WITH_REDIRECT_APPEND;
-                command_count++;
-            } else if (strcmp(token, "&&") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_LOGICAL_AND;
-                command_count++;
-            } else if (strcmp(token, "||") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_LOGICAL_OR;
-                command_count++;
-            } else if (strcmp(token, "&") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_BACKGROUND;
-                command_count++;
-            } else if (strcmp(token, ";") == 0) {
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    NULL;
-                commands[command_count].c_operation = COMMAND_WITH_SEMICOLON;
-                command_count++;
-            } else {
-                if (commands[command_count].c_argv == 0) {
-                    strcpy(commands[command_count].c_name, token);
-                }
-                commands[command_count].c_args[commands[command_count].c_argv] =
-                    token;
-                commands[command_count].c_argv++;
+        for (int i = 0; i < strlen(line); i++) {
+            if (line[i] == '\n') {
+                line[i] = '\0';
             }
-            token = strtok(NULL, " \n");
+
+            if (line[i] == '|' || line[i] == '&' || line[i] == ';') {
+                command_count++;
+            }
         }
 
-        commands[command_count].c_args[commands[command_count].c_argv] = NULL;
-        int pid;
-        if ((pid = fork()) == -1) {
-            perror("fork");
-            return -1;
-        } else if (pid > 0) {
-            wait(NULL);
-        } else {
-            if (commands[0].c_operation == SINGLE_COMMAND) {
-                execvp(commands[0].c_name, commands[0].c_args);
-            } else {
-                if (commands[0].c_operation == COMMAND_WITH_PIPE) {
-                    int pipefd[2];
-                    if (pipe(pipefd) == -1) {
-                        perror("pipe");
-                        return -1;
-                    }
+        commands = malloc(command_count * sizeof(t_command));
+        operations = malloc(command_count * sizeof(int));
 
-                    int pid1;
-                    if ((pid1 = fork()) == -1) {
-                        perror("fork");
-                        return -1;
-                    } else if (pid1 > 0) {
-                        int pid2;
-                        if ((pid2 = fork()) == -1) {
-                            perror("fork");
-                            return -1;
-                        } else if (pid2 > 0) {
-                            close(pipefd[1]);
-                            dup2(pipefd[0], STDIN_FILENO);
-                            close(pipefd[0]);
-                            execvp(commands[1].c_name, commands[1].c_args);
-                        }
-                    } else {
-                        close(pipefd[0]);
-                        dup2(pipefd[1], STDOUT_FILENO);
-                        close(pipefd[1]);
-                        execvp(commands[0].c_name, commands[0].c_args);
-                    }
-                } else if (commands[0].c_operation
-                           == COMMAND_WITH_REDIRECT_IN) {
-                    int fd = open(commands[1].c_name, O_RDONLY);
-                    dup2(fd, STDIN_FILENO);
-                    close(fd);
-                    execvp(commands[0].c_name, commands[0].c_args);
-                } else if (commands[0].c_operation
-                           == COMMAND_WITH_REDIRECT_OUT) {
-                    int fd = open(commands[1].c_name, O_WRONLY | O_CREAT, 0644);
-                    dup2(fd, STDOUT_FILENO);
-                    close(fd);
-                    execvp(commands[0].c_name, commands[0].c_args);
-                } else if (commands[0].c_operation
-                           == COMMAND_WITH_REDIRECT_APPEND) {
-                    int fd = open(commands[1].c_name, O_WRONLY | O_APPEND);
-                    dup2(fd, STDOUT_FILENO);
-                    close(fd);
-                    execvp(commands[0].c_name, commands[0].c_args);
-                } else if (commands[0].c_operation
-                           == COMMAND_WITH_LOGICAL_AND) {
-                    int pid1;
-                    if ((pid1 = fork()) == -1) {
-                        perror("fork");
-                        return -1;
-                    } else if (pid1 > 0) {
-                        perror("execvp");
-                        exit(-1);
-                    }
+        for (int i = 0; i < command_count; i++) {
+            INIT_COMMAND(commands[i]);
+            operations[i] = NOOP;
+        }
+
+        // parse the line and store the commands and operations
+        char* tmp = malloc(1024 * sizeof(char));
+        int flag = 0;
+        for (int i = 0, j = 0, start = 0; i < strlen(line); i++) {
+            if (line[i] == '|') {
+                operations[i] = PIPE;
+                if (line[i + 1] == '|') {
+                    operations[i] = LOGICAL_OR;
+                    i++;
                 }
+                flag = 1;
+            } else if (line[i] == '&') {
+                operations[i] = BACKGROUND;
+                if (line[i + 1] == '&') {
+                    operations[i] = LOGICAL_AND;
+                    i++;
+                }
+                flag = 1;
+            } else if (line[i] == ';') {
+                operations[i] = CHAIN;
+                flag = 1;
+            } else if (line[i] == '\0' || line[i] == '\n'
+                       || i == strlen(line) - 1) {
+                flag = 2;
             }
+
+            if (flag == 1) {
+                memcpy(tmp, line + start, i - start);
+                tmp[i - start] = '\0';
+                commands[j].c_full_command = trim(tmp);
+                j++;
+                start = i + 1;
+                flag = 0;
+            } else if (flag == 2) {
+                memcpy(tmp, line + start, strlen(line) - start);
+                tmp[strlen(line) - start] = '\0';
+                commands[j].c_full_command = trim(tmp);
+            }
+        }
+
+        char* cmd = strtok(line, "|&&;");
+        int i = 0;
+        while (cmd != NULL) {
+            printf("commands[%d].c_full_command : %s\n", i,
+                   commands[i].c_full_command);
+            // process_command(cmd, &commands[i]);
+            cmd = strtok(NULL, "|&&;");
+            i++;
         }
     }
     return 0;
