@@ -6,14 +6,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-enum command_operation {
-    NOOP,
-    PIPE,
-    LOGICAL_AND,
-    LOGICAL_OR,
-    BACKGROUND,
-    CHAIN
-};
+static int BACKGROUND = 0;
+
+enum command_operation { NOOP, PIPE, LOGICAL_AND, LOGICAL_OR, CHAIN };
 
 enum command_sub_operation {
     NO_SUB_OP,
@@ -103,7 +98,10 @@ process_command(t_command* command) {
     command->c_args[count] = NULL;
     command->c_argv = count;
 
-    print_command(command);
+    if (count > 3) {
+        printf("mybash: %s: too many arguments\n", command->c_name);
+        exit(1);
+    }
 }
 
 void
@@ -120,9 +118,10 @@ process_line(char* line, t_command* commands, int* operations) {
             }
             flag = 1;
         } else if (line[i] == '&') {
-            operations[i] = BACKGROUND;
+            BACKGROUND = 1;
             if (line[i + 1] == '&') {
                 operations[i] = LOGICAL_AND;
+                BACKGROUND = 0;
                 i++;
             }
             flag = 1;
@@ -138,6 +137,7 @@ process_line(char* line, t_command* commands, int* operations) {
             memcpy(tmp, line + start, i - start);
             tmp[i - start] = '\0';
             commands[j].c_full_command = trim(tmp);
+            commands[j].c_operation = operations[i];
             j++;
             start = i + 1;
             flag = 0;
@@ -158,24 +158,30 @@ main(int argc, char* argv[]) {
 
     while (1) {
         t_command* commands;
+        int pipes_pool[64][2];
+        int* pid_pool;
         int* operations;
         int command_count = 1;
         size_t line_size = 0;
 
         char* token = malloc(1024 * sizeof(char));
+        dup2(stdin_fd, STDIN_FILENO);
+        dup2(stdout_fd, STDOUT_FILENO);
 
+        // TODO: Remove pid from here.
         printf("mybash$ {%d} : ", getpid());
         fflush(stdout);
 
         getline(&line, &line_size, stdin);
 
         if (strcmp(line, "exit\n") == 0) {
-            break;
+            exit(0);
         }
-        for (int i = 0; i < strlen(line); i++) {
-            if (line[i] == '\n') {
-                line[i] = '\0';
-            }
+
+        if (line[strlen(line) - 1] == '\n') {
+            line[strlen(line) - 1] = '\0';
+        }
+        for (int i = 0; i < strlen(line) - 1; i++) {
 
             if (line[i] == '|' || line[i] == '&' || line[i] == ';') {
                 command_count++;
@@ -192,8 +198,57 @@ main(int argc, char* argv[]) {
 
         process_line(line, commands, operations);
 
+        pid_pool = malloc(command_count * sizeof(int));
         for (int i = 0; i < command_count; i++) {
             process_command(&commands[i]);
+            if (pipe(pipes_pool[i]) < 0) {
+                printf("pipe failed\n");
+                exit(1);
+            }
+        }
+
+        for (int i = 0; i < command_count; i++) {
+            if (commands[i].c_operation == PIPE
+                || commands[i].c_operation == NOOP) {
+                pid_pool[i] = fork();
+                if (pid_pool[i] < 0) {
+                    perror("fork failed\n");
+                } else if (pid_pool[i] == 0) {
+                    if (i != 0) {
+                        dup2(pipes_pool[i - 1][0], STDIN_FILENO);
+                        close(pipes_pool[i - 1][0]);
+                    }
+                    if (i != command_count - 1) {
+                        dup2(pipes_pool[i][1], STDOUT_FILENO);
+                        close(pipes_pool[i][1]);
+                    }
+                    for (int j = 0; j < command_count; j++) {
+                        close(pipes_pool[j][0]);
+                        close(pipes_pool[j][1]);
+                    }
+
+                    if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
+                        printf("mybash: %s: command not found\n",
+                               commands[i].c_name);
+                        exit(1);
+                    }
+                }
+            }
+
+            // for (int j = 0; j < command_count; j++) {
+            //     close(pipes_pool[j][0]);
+            //     close(pipes_pool[j][1]);
+            // }
+
+            for (int j = 0; j < command_count; j++) {
+                if (!BACKGROUND) {
+                    waitpid(pid_pool[j], NULL, 0);
+                } else {
+                    printf(
+                        "Process running in background with process id : %d \n",
+                        pid_pool[j]);
+                }
+            }
         }
     }
     return 0;
