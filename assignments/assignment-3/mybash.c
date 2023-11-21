@@ -234,20 +234,19 @@ main(int argc, char* argv[]) {
                     }
                 }
             }
+        }
 
-            // for (int j = 0; j < command_count; j++) {
-            //     close(pipes_pool[j][0]);
-            //     close(pipes_pool[j][1]);
-            // }
+        for (int j = 0; j < command_count; j++) {
+            close(pipes_pool[j][0]);
+            close(pipes_pool[j][1]);
+        }
 
-            for (int j = 0; j < command_count; j++) {
-                if (!BACKGROUND) {
-                    waitpid(pid_pool[j], NULL, 0);
-                } else {
-                    printf(
-                        "Process running in background with process id : %d \n",
-                        pid_pool[j]);
-                }
+        for (int j = 0; j < command_count; j++) {
+            if (!BACKGROUND) {
+                waitpid(pid_pool[j], NULL, 0);
+            } else {
+                printf("Process running in background with process id : %d \n",
+                       pid_pool[j]);
             }
         }
     }
