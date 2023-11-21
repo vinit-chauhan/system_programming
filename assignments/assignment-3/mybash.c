@@ -24,12 +24,12 @@ typedef struct {
     int c_argv;
     char* c_redirection_file;
     enum command_operation c_operation;
-    enum command_sub_operation c_sub_operation;
+    enum command_sub_operation c_redirection_operation;
 } t_command;
 
 #define INIT_COMMAND(t_command)                                                \
     t_command.c_argv = 0;                                                      \
-    t_command.c_sub_operation = NO_SUB_OP;                                     \
+    t_command.c_redirection_operation = NO_SUB_OP;                             \
     t_command.c_operation = NOOP;                                              \
     t_command.c_redirection_file = NULL;                                       \
     t_command.c_full_command = NULL;                                           \
@@ -52,6 +52,7 @@ trim(char* str) {
     return strdup(start);
 }
 
+// For debugging
 void
 print_command(t_command* command) {
     printf("full command: %s\n", command->c_full_command);
@@ -63,9 +64,11 @@ print_command(t_command* command) {
     printf("\n");
     printf("command argv: %d\n", command->c_argv);
     printf("command operation: %d\n", command->c_operation);
-    printf("command sub operation: %d\n", command->c_sub_operation);
+    printf("command redirection operation: %d\n",
+           command->c_redirection_operation);
 }
 
+// Process the command and store the arguments
 void
 process_command(t_command* command) {
     char* cmd = strdup(command->c_full_command);
@@ -76,18 +79,19 @@ process_command(t_command* command) {
         command->c_args[count] = strdup(token);
         count++;
 
+        // Set the appropriate redirection operation
         if (strcmp(token, ">") == 0) {
-            command->c_sub_operation = REDIRECT_OUT;
+            command->c_redirection_operation = REDIRECT_OUT;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
             break;
         } else if (strcmp(token, ">>") == 0) {
-            command->c_sub_operation = REDIRECT_APPEND;
+            command->c_redirection_operation = REDIRECT_APPEND;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
             break;
         } else if (strcmp(token, "<") == 0) {
-            command->c_sub_operation = REDIRECT_IN;
+            command->c_redirection_operation = REDIRECT_IN;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
             break;
@@ -98,12 +102,14 @@ process_command(t_command* command) {
     command->c_args[count] = NULL;
     command->c_argv = count;
 
+    // Check if the command has more than 3 arguments
     if (count > 3) {
         printf("mybash: %s: too many arguments\n", command->c_name);
         exit(1);
     }
 }
 
+// Process the line and store the commands and operations
 void
 process_line(char* line, t_command* commands, int* operations) {
     // parse the line and store the commands and operations
@@ -169,7 +175,7 @@ main(int argc, char* argv[]) {
         dup2(stdout_fd, STDOUT_FILENO);
 
         // TODO: Remove pid from here.
-        printf("mybash$ {%d} : ", getpid());
+        printf("mybash$ ");
         fflush(stdout);
 
         getline(&line, &line_size, stdin);
@@ -181,8 +187,8 @@ main(int argc, char* argv[]) {
         if (line[strlen(line) - 1] == '\n') {
             line[strlen(line) - 1] = '\0';
         }
-        for (int i = 0; i < strlen(line) - 1; i++) {
 
+        for (int i = 0; i < strlen(line) - 1; i++) {
             if (line[i] == '|' || line[i] == '&' || line[i] == ';') {
                 command_count++;
             }
@@ -208,30 +214,28 @@ main(int argc, char* argv[]) {
         }
 
         for (int i = 0; i < command_count; i++) {
-            if (commands[i].c_operation == PIPE
-                || commands[i].c_operation == NOOP) {
-                pid_pool[i] = fork();
-                if (pid_pool[i] < 0) {
-                    perror("fork failed\n");
-                } else if (pid_pool[i] == 0) {
-                    if (i != 0) {
-                        dup2(pipes_pool[i - 1][0], STDIN_FILENO);
-                        close(pipes_pool[i - 1][0]);
-                    }
-                    if (i != command_count - 1) {
-                        dup2(pipes_pool[i][1], STDOUT_FILENO);
-                        close(pipes_pool[i][1]);
-                    }
-                    for (int j = 0; j < command_count; j++) {
-                        close(pipes_pool[j][0]);
-                        close(pipes_pool[j][1]);
-                    }
+            pid_pool[i] = fork();
+            if (pid_pool[i] < 0) {
+                perror("fork failed\n");
+            } else if (pid_pool[i] == 0) {
+                if (i != 0) {
+                    dup2(pipes_pool[i - 1][0], STDIN_FILENO);
+                    close(pipes_pool[i - 1][0]);
+                }
+                if (i != command_count - 1
+                    && commands[i].c_operation != CHAIN) {
+                    dup2(pipes_pool[i][1], STDOUT_FILENO);
+                    close(pipes_pool[i][1]);
+                }
+                for (int j = 0; j < command_count; j++) {
+                    close(pipes_pool[j][0]);
+                    close(pipes_pool[j][1]);
+                }
 
-                    if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
-                        printf("mybash: %s: command not found\n",
-                               commands[i].c_name);
-                        exit(1);
-                    }
+                if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
+                    printf("mybash$ %s: command not found\n",
+                           commands[i].c_name);
+                    exit(1);
                 }
             }
         }
