@@ -121,29 +121,30 @@ process_command(command_t* command) {
 
 // Process the line and store the commands and operations
 void
-process_line(char* line, command_t* commands, int* operations) {
+process_line(char* line, command_t* commands) {
     // parse the line and store the commands and operations
     char* tmp = malloc(1024 * sizeof(char));
     int flag = 0;
     for (int i = 0, j = 0, start = 0; i < strlen(line); i++) {
+        enum command_operation operation = NOOP;
         if (line[i] == '|') {
             // TODO: remove operations array from the code.
-            operations[i] = PIPE;
+            operation = PIPE;
             if (line[i + 1] == '|') {
-                operations[i] = LOGICAL_OR;
+                operation = LOGICAL_OR;
                 i++;
             }
             flag = 1;
         } else if (line[i] == '&') {
             BACKGROUND = 1;
             if (line[i + 1] == '&') {
-                operations[i] = LOGICAL_AND;
+                operation = LOGICAL_AND;
                 BACKGROUND = 0;
                 i++;
             }
             flag = 1;
         } else if (line[i] == ';') {
-            operations[i] = CHAIN;
+            operation = CHAIN;
             flag = 1;
         } else if (line[i] == '\0' || line[i] == '\n'
                    || i == strlen(line) - 1) {
@@ -154,7 +155,7 @@ process_line(char* line, command_t* commands, int* operations) {
             memcpy(tmp, line + start, i - start);
             tmp[i - start] = '\0';
             commands[j].c_full_command = trim(tmp);
-            commands[j].c_operation = operations[i];
+            commands[j].c_operation = operation;
             j++;
             start = i + 1;
             flag = 0;
@@ -179,7 +180,6 @@ main(int argc, char* argv[]) {
         command_t* commands;
         int pipes_pool[64][2];
         int* pid_pool;
-        int* operations;
         int command_count = 1;
         size_t line_size = 0;
 
@@ -196,6 +196,11 @@ main(int argc, char* argv[]) {
         // Read the line from stdin
         getline(&line, &line_size, stdin);
 
+        // If the line is empty then continue
+        if (strcmp(line, "\n") == 0) {
+            continue;
+        }
+
         // if the line says 'exit' then exit the shell
         if (strcmp(line, "exit\n") == 0) {
             exit(0);
@@ -209,30 +214,31 @@ main(int argc, char* argv[]) {
         // Count the number of commands in the line
         for (int i = 0; i < strlen(line) - 1; i++) {
             if (line[i] == '|' || line[i] == '&' || line[i] == ';') {
+                if (line[i + 1] == line[i]) {
+                    i++;
+                }
                 command_count++;
             }
         }
 
         // Dynamically allocate memory for commands and operations
         commands = malloc(command_count * sizeof(command_t));
-        operations = malloc(command_count * sizeof(int));
-
         // Initialize the commands and operations
         for (int i = 0; i < command_count; i++) {
             INIT_COMMAND(commands[i]);
-            operations[i] = NOOP;
         }
 
         // Process the line and extract separate commands
         // and store the command in commands array
-        process_line(line, commands, operations);
+        process_line(line, commands);
 
         // Dynamically allocate memory for pid pool
         pid_pool = malloc(command_count * sizeof(int));
 
         // Create pool of pipes
         for (int i = 0; i < command_count; i++) {
-            process_command(&commands[i]);
+            command_t* cmd = &commands[i];
+            process_command(cmd);
             if (pipe(pipes_pool[i]) < 0) {
                 printf("pipe failed\n");
                 exit(1);
@@ -258,6 +264,8 @@ main(int argc, char* argv[]) {
                 // Change stdout for all the commands except the last one,
                 // commands with change and commands with no redirection
                 if (i != command_count - 1 && commands[i].c_operation != CHAIN
+                    && commands[i].c_operation != LOGICAL_AND
+                    && commands[i].c_operation != LOGICAL_OR
                     && commands[i].c_redirection_operation == NO_SUB_OP) {
                     dup2(pipes_pool[i][1], STDOUT_FILENO);
                     close(pipes_pool[i][1]);
