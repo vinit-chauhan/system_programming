@@ -1,3 +1,7 @@
+// Name: Vinit Hemantbhai Chauhan
+// Student Id: 110123359
+// Assignment 3 : Section 1
+
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
