@@ -347,6 +347,12 @@ main(int argc, char* argv[]) {
                     close(pipes_pool[j][1]);
                 }
 
+                if (BACKGROUND) {
+                    dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+                    setpgid(0, 0);
+                    BACKGROUND = 0;
+                }
+
                 // Execute the command
                 if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
                     printf("%s: command not found\n", commands[i].c_name);
@@ -367,6 +373,7 @@ main(int argc, char* argv[]) {
             } else {
                 printf("Process running in background with process id : %d \n",
                        pid_pool[j]);
+                BACKGROUND = 0;
             }
         }
     }
