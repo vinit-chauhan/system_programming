@@ -8,8 +8,10 @@
 
 static int BACKGROUND = 0;
 
+// Enum for command operations
 enum command_operation { NOOP, PIPE, LOGICAL_AND, LOGICAL_OR, CHAIN };
 
+// Enum for command sub operations
 enum command_sub_operation {
     NO_SUB_OP,
     REDIRECT_IN,
@@ -17,6 +19,7 @@ enum command_sub_operation {
     REDIRECT_APPEND
 };
 
+// Struct to store the command
 typedef struct {
     char* c_full_command;
     char* c_args[4];
@@ -25,17 +28,19 @@ typedef struct {
     char* c_redirection_file;
     enum command_operation c_operation;
     enum command_sub_operation c_redirection_operation;
-} t_command;
+} command_t;
 
-#define INIT_COMMAND(t_command)                                                \
-    t_command.c_argv = 0;                                                      \
-    t_command.c_redirection_operation = NO_SUB_OP;                             \
-    t_command.c_operation = NOOP;                                              \
-    t_command.c_redirection_file = NULL;                                       \
-    t_command.c_full_command = NULL;                                           \
-    t_command.c_name = NULL;                                                   \
-    memset(t_command.c_args, 0, 4 * sizeof(char*));
+// Macro to initialize new command struct
+#define INIT_COMMAND(command_t)                                                \
+    command_t.c_argv = 0;                                                      \
+    command_t.c_redirection_operation = NO_SUB_OP;                             \
+    command_t.c_operation = NOOP;                                              \
+    command_t.c_redirection_file = NULL;                                       \
+    command_t.c_full_command = NULL;                                           \
+    command_t.c_name = NULL;                                                   \
+    memset(command_t.c_args, 0, 4 * sizeof(char*));
 
+// Trim the whitespaces from beginning and end of the the string
 char*
 trim(char* str) {
     char* start = str;
@@ -52,9 +57,9 @@ trim(char* str) {
     return strdup(start);
 }
 
-// For debugging
+// Print the struct of command for debugging
 void
-print_command(t_command* command) {
+print_command(command_t* command) {
     printf("full command: %s\n", command->c_full_command);
     printf("command name: %s\n", command->c_args[0]);
     printf("command args: ");
@@ -71,11 +76,12 @@ print_command(t_command* command) {
 
 // Process the command and store the arguments
 void
-process_command(t_command* command) {
+process_command(command_t* command) {
     char* cmd = strdup(command->c_full_command);
     char* token = strtok(cmd, " ");
     int count = 0;
 
+    // Iterate over the command and store the arguments
     while (token != NULL) {
         command->c_args[count] = strdup(token);
         count++;
@@ -115,12 +121,13 @@ process_command(t_command* command) {
 
 // Process the line and store the commands and operations
 void
-process_line(char* line, t_command* commands, int* operations) {
+process_line(char* line, command_t* commands, int* operations) {
     // parse the line and store the commands and operations
     char* tmp = malloc(1024 * sizeof(char));
     int flag = 0;
     for (int i = 0, j = 0, start = 0; i < strlen(line); i++) {
         if (line[i] == '|') {
+            // TODO: remove operations array from the code.
             operations[i] = PIPE;
             if (line[i + 1] == '|') {
                 operations[i] = LOGICAL_OR;
@@ -161,54 +168,69 @@ process_line(char* line, t_command* commands, int* operations) {
 
 int
 main(int argc, char* argv[]) {
+    // Store the stdin and stdout file descriptors
     int stdin_fd = dup(STDIN_FILENO);
     int stdout_fd = dup(STDOUT_FILENO);
 
+    // Dynamically allocate memory for line
     char* line = malloc(1024 * sizeof(char));
 
     while (1) {
-        t_command* commands;
+        command_t* commands;
         int pipes_pool[64][2];
         int* pid_pool;
         int* operations;
         int command_count = 1;
         size_t line_size = 0;
 
-        char* token = malloc(1024 * sizeof(char));
+        char* token = malloc(32 * sizeof(char));
+
+        // Reset the stdin and stdout file descriptors for each new iteration
         dup2(stdin_fd, STDIN_FILENO);
         dup2(stdout_fd, STDOUT_FILENO);
 
-        // TODO: Remove pid from here.
+        // Print the prompt to stdout
         printf("mybash$ ");
         fflush(stdout);
 
+        // Read the line from stdin
         getline(&line, &line_size, stdin);
 
+        // if the line says 'exit' then exit the shell
         if (strcmp(line, "exit\n") == 0) {
             exit(0);
         }
 
+        // Remove the trailing newline character
         if (line[strlen(line) - 1] == '\n') {
             line[strlen(line) - 1] = '\0';
         }
 
+        // Count the number of commands in the line
         for (int i = 0; i < strlen(line) - 1; i++) {
             if (line[i] == '|' || line[i] == '&' || line[i] == ';') {
                 command_count++;
             }
         }
 
-        commands = malloc(command_count * sizeof(t_command));
+        // Dynamically allocate memory for commands and operations
+        commands = malloc(command_count * sizeof(command_t));
         operations = malloc(command_count * sizeof(int));
 
+        // Initialize the commands and operations
         for (int i = 0; i < command_count; i++) {
             INIT_COMMAND(commands[i]);
             operations[i] = NOOP;
         }
 
+        // Process the line and extract separate commands
+        // and store the command in commands array
         process_line(line, commands, operations);
 
+        // Dynamically allocate memory for pid pool
         pid_pool = malloc(command_count * sizeof(int));
+
+        // Create pool of pipes
         for (int i = 0; i < command_count; i++) {
             process_command(&commands[i]);
             if (pipe(pipes_pool[i]) < 0) {
@@ -218,44 +240,60 @@ main(int argc, char* argv[]) {
         }
 
         for (int i = 0; i < command_count; i++) {
+            // Fork the process and execute individual command
             pid_pool[i] = fork();
             if (pid_pool[i] < 0) {
                 perror("fork failed\n");
             } else if (pid_pool[i] == 0) {
                 int fd = -1;
+
+                // Change stdin for all the commands except the first one
+                // and commands with no redirection
                 if (i != 0
                     || commands[i].c_redirection_operation == NO_SUB_OP) {
                     dup2(pipes_pool[i - 1][0], STDIN_FILENO);
                     close(pipes_pool[i - 1][0]);
                 }
+
+                // Change stdout for all the commands except the last one,
+                // commands with change and commands with no redirection
                 if (i != command_count - 1 && commands[i].c_operation != CHAIN
                     && commands[i].c_redirection_operation == NO_SUB_OP) {
                     dup2(pipes_pool[i][1], STDOUT_FILENO);
                     close(pipes_pool[i][1]);
                 }
 
+                //  Handle the redirection operations
                 if (commands[i].c_redirection_operation == REDIRECT_OUT) {
+
+                    // Set STDOUT to the output file
                     fd = open(commands[i].c_redirection_file,
                               O_WRONLY | O_CREAT | O_TRUNC, 0644);
                     dup2(fd, STDOUT_FILENO);
                     close(fd);
                 } else if (commands[i].c_redirection_operation
                            == REDIRECT_APPEND) {
+
+                    // Set STDOUT to the output file with append
                     fd = open(commands[i].c_redirection_file,
                               O_WRONLY | O_CREAT | O_APPEND, 0644);
                     dup2(fd, STDOUT_FILENO);
                     close(fd);
                 } else if (commands[i].c_redirection_operation == REDIRECT_IN) {
+
+                    // Set STDIN to the input file
                     fd = open(commands[i].c_redirection_file, O_RDONLY, 0644);
                     dup2(fd, STDIN_FILENO);
                     close(fd);
                 }
 
+                // Close all unused pipes
                 for (int j = 0; j < command_count; j++) {
                     close(pipes_pool[j][0]);
                     close(pipes_pool[j][1]);
                 }
 
+                // Execute the command
                 if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
                     printf("mybash$ %s: command not found\n",
                            commands[i].c_name);
