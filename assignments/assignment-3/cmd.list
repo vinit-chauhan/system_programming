@@ -1,0 +1,24 @@
+ls -1 -a
+
+ls; ps;
+
+ls -1 | grep .c | wc -l; ps 
+
+LS || PS || ps && ls
+
+LS && ps || ls
+
+LS || ls; PS && ps
+
+LS || ps; ls | grep .c | wc -l
+
+LS || PS || ps; ls
+
+# Redirections
+echo new > input; 
+
+cat < input;
+
+echo temp >> input; 
+
+cat < input;
