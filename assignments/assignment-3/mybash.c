@@ -46,12 +46,22 @@ trim(char* str) {
     char* start = str;
     char* end = strlen(str) + str - 1;
 
+    // remove trailing & and | from && and ||
+    if (*end == '&' || *end == '|') {
+        end--;
+    }
+
+    // remove leading spaces
     while (*start == ' ' || *start == '\t') {
         start++;
     }
-    while (*end == ' ' || *end == '\t' || *end == '&' || *end == '|') {
+
+    // remove trailing spaces
+    while (*end == ' ' || *end == '\t') {
         end--;
     }
+
+    // add null character at the end
     *(end + 1) = '\0';
 
     return strdup(start);
@@ -114,8 +124,7 @@ process_command(command_t* command) {
 
     // Check if the command has more than 3 arguments
     if (count > 3) {
-        printf("mybash: %s: too many arguments\n", command->c_name);
-        exit(1);
+        printf("%s: too many arguments\n", command->c_args[0]);
     }
 }
 
@@ -235,17 +244,54 @@ main(int argc, char* argv[]) {
         // Dynamically allocate memory for pid pool
         pid_pool = malloc(command_count * sizeof(int));
 
-        // Create pool of pipes
+        // Process each commands and create pool of pipes
         for (int i = 0; i < command_count; i++) {
             command_t* cmd = &commands[i];
             process_command(cmd);
+
+            // Create pipes for each command
             if (pipe(pipes_pool[i]) < 0) {
                 printf("pipe failed\n");
                 exit(1);
             }
         }
 
+        int last_status[1] = {0}; // 0 = fail and 1 = success
+
+        // Iterate over the commands and execute them
         for (int i = 0; i < command_count; i++) {
+
+            if (i != 0) {
+                if (commands[i - 1].c_operation == LOGICAL_AND) {
+
+                    if (last_status[0] != 0) {
+                        // If command fails and next operation is OR then Skip
+                        int k = i + 1;
+                        for (; k < command_count; k++) {
+                            if (commands[k].c_operation == LOGICAL_AND) {
+                                continue;
+                            } else {
+                                break;
+                            }
+                        }
+                        i = k;
+                    }
+                } else if (commands[i - 1].c_operation == LOGICAL_OR) {
+                    if (last_status[0] == 0) {
+                        int k = i + 1;
+                        for (; k < command_count; k++) {
+                            if (commands[k].c_operation == LOGICAL_OR) {
+                                continue;
+                            } else {
+                                break;
+                            }
+                        }
+                        i = k;
+                    }
+                }
+            }
+            last_status[0] = 1;
+
             // Fork the process and execute individual command
             pid_pool[i] = fork();
             if (pid_pool[i] < 0) {
@@ -303,8 +349,8 @@ main(int argc, char* argv[]) {
 
                 // Execute the command
                 if (execvp(commands[i].c_name, commands[i].c_args) < 0) {
-                    printf("mybash$ %s: command not found\n",
-                           commands[i].c_name);
+                    printf("%s: command not found\n", commands[i].c_name);
+                    last_status[0] = 0;
                     exit(1);
                 }
             }
