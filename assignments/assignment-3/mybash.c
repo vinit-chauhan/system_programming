@@ -41,10 +41,10 @@ trim(char* str) {
     char* start = str;
     char* end = strlen(str) + str - 1;
 
-    while (*start == ' ') {
+    while (*start == ' ' || *start == '\t') {
         start++;
     }
-    while (*end == ' ' || *end == '&' || *end == '|') {
+    while (*end == ' ' || *end == '\t' || *end == '&' || *end == '|') {
         end--;
     }
     *(end + 1) = '\0';
@@ -66,6 +66,7 @@ print_command(t_command* command) {
     printf("command operation: %d\n", command->c_operation);
     printf("command redirection operation: %d\n",
            command->c_redirection_operation);
+    printf("command redirection file: %s\n", command->c_redirection_file);
 }
 
 // Process the command and store the arguments
@@ -84,16 +85,19 @@ process_command(t_command* command) {
             command->c_redirection_operation = REDIRECT_OUT;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
+            count--;
             break;
         } else if (strcmp(token, ">>") == 0) {
             command->c_redirection_operation = REDIRECT_APPEND;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
+            count--;
             break;
         } else if (strcmp(token, "<") == 0) {
             command->c_redirection_operation = REDIRECT_IN;
             token = strtok(NULL, " ");
             command->c_redirection_file = token;
+            count--;
             break;
         }
         token = strtok(NULL, " ");
@@ -218,15 +222,35 @@ main(int argc, char* argv[]) {
             if (pid_pool[i] < 0) {
                 perror("fork failed\n");
             } else if (pid_pool[i] == 0) {
-                if (i != 0) {
+                int fd = -1;
+                if (i != 0
+                    || commands[i].c_redirection_operation == NO_SUB_OP) {
                     dup2(pipes_pool[i - 1][0], STDIN_FILENO);
                     close(pipes_pool[i - 1][0]);
                 }
-                if (i != command_count - 1
-                    && commands[i].c_operation != CHAIN) {
+                if (i != command_count - 1 && commands[i].c_operation != CHAIN
+                    && commands[i].c_redirection_operation == NO_SUB_OP) {
                     dup2(pipes_pool[i][1], STDOUT_FILENO);
                     close(pipes_pool[i][1]);
                 }
+
+                if (commands[i].c_redirection_operation == REDIRECT_OUT) {
+                    fd = open(commands[i].c_redirection_file,
+                              O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
+                } else if (commands[i].c_redirection_operation
+                           == REDIRECT_APPEND) {
+                    fd = open(commands[i].c_redirection_file,
+                              O_WRONLY | O_CREAT | O_APPEND, 0644);
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
+                } else if (commands[i].c_redirection_operation == REDIRECT_IN) {
+                    fd = open(commands[i].c_redirection_file, O_RDONLY, 0644);
+                    dup2(fd, STDIN_FILENO);
+                    close(fd);
+                }
+
                 for (int j = 0; j < command_count; j++) {
                     close(pipes_pool[j][0]);
                     close(pipes_pool[j][1]);
