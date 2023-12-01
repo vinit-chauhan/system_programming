@@ -1,6 +1,6 @@
-I'll provide an explanation of the arguments, return types, and different return conditions for the specified system calls and macros:
-
-**System Calls:**
+##############################################################################################
+######################################## System Calls ########################################
+##############################################################################################
 
 1. `open()` system call:
    - Arguments: `const char *pathname`, `int flags`, `mode_t mode`.
@@ -51,7 +51,9 @@ I'll provide an explanation of the arguments, return types, and different return
     - Arguments vary based on the specific function but generally include the program name and command-line arguments.
     - Return Type: These functions do not return if successful. They replace the current process with a new program. If there's an error, they return -1, setting `errno` accordingly.
 
-**Macros:**
+########################################################################################
+######################################## Macros ########################################
+########################################################################################
 
 1. `WIFEXITED(status)`:
    - Argument: `int status` (typically the status returned by `wait()` or `waitpid()`).
@@ -74,3 +76,159 @@ I'll provide an explanation of the arguments, return types, and different return
    - Return Conditions: Returns the signal number that caused the termination of the child process. Only meaningful if `WIFSIGNALED(status)` is true.
 
 These system calls and macros are essential for process management, file I/O, and handling the exit status and termination conditions of child processes in Unix-like operating systems.
+
+#################################################################################################
+######################################## Shell Scripting ########################################
+#################################################################################################
+
+#### Numeric Comparisons:
+- **Equal (`-eq`):** Checks if two numbers are equal.
+- **Not Equal (`-ne`):** Checks if two numbers are not equal.
+- **Greater Than (`-gt`):** Checks if the left number is greater than the right number.
+- **Greater Than or Equal To (`-ge`):** Checks if the left number is greater than or equal to the right number.
+- **Less Than (`-lt`):** Checks if the left number is less than the right number.
+- **Less Than or Equal To (`-le`):** Checks if the left number is less than or equal to the right number.
+
+#### String Comparisons:
+- **Equal (`==`):** Checks if two strings are equal.
+- **Not Equal (`!=`):** Checks if two strings are not equal.
+- **Lexicographically Less Than (`<`):** Checks if the left string is lexicographically less than the right string.
+- **Lexicographically Greater Than (`>`):** Checks if the left string is lexicographically greater than the right string.
+
+#### File Checks:
+- **File Exists (`-e`):** Checks if a file exists.
+- **File is a Directory (`-d`):** Checks if a file is a directory.
+- **File is Readable (`-r`):** Checks if a file is readable.
+- **File is Writable (`-w`):** Checks if a file is writable.
+- **File is Executable (`-x`):** Checks if a file is executable.
+
+
+#################################################################################################
+
+#### 1. Shebang
+   #!/bin/bash
+   Specifies the interpreter to be used for the script.
+
+#### 2. Variables
+   variable_name="value"
+   Declare and initialize a variable.
+
+#### 3. Input/Output
+   # Reading input
+   read -p "Enter value: " input_variable
+   # Printing output
+   echo "Output: $variable_name"
+
+#### 4. Comments
+   # This is a comment
+
+#### 5. Conditionals
+   if [ condition ]; then
+      # code
+   elif [ condition ]; then
+      # code
+   else
+      # code
+   fi
+
+#### 6. Loops
+   # For loop
+   for item in "${array[@]}"; do
+      # code
+   done
+
+   # While loop
+   while [ condition ]; do
+      # code
+   done
+
+#### 7. Functions
+   function_name() {
+      # code
+   }
+
+   # Calling a function
+   function_name arg1 arg2 arg3 ...
+
+#### 8. String Operations
+   # Concatenate strings
+   concatenated_string="$string1$string2"
+   # Length of a string
+   length=${#string}
+
+#### 9. Arrays
+   # Declare an array
+   my_array=("value1" "value2" "value3")
+   # Access an element
+   element=${my_array[0]}
+   # Iterate over array
+   for item in "${my_array[@]}"; do
+      # code
+   done
+
+#### 10. File Operations
+   # Check if a file exists
+   if [ -e "$file" ]; then
+      # code
+   fi
+
+   # Check if a directory exists
+   if [ -d "$directory" ]; then
+      # code
+   fi
+
+   # Read lines from a file
+   while IFS= read -r line; do
+      # code
+   done < "filename"
+
+#### 11. Special Variables
+- `$0`: Script name
+- `$1`, `$2`, ...: Command line arguments
+- `$#`: Number of arguments
+- `$@`: All arguments as a list
+- `$?`: Exit status of the last command
+- `$$`: Process ID of the current script
+- `$!`: Process ID of the last background command
+
+#### 12. Exit Status
+   # Exit with a status code
+   exit 0  # Success
+   exit 1  # Failure
+
+#### 13. Redirection
+   # Redirect standard output to a file
+   command > output.txt
+
+   # Redirect standard error to a file
+   command 2> error.txt
+
+   # Redirect standard output and error to a file
+   command > output_and_error.txt 2>&1
+
+#### 14. Conditional Expressions
+   # Numeric comparison
+   if [ "$a" -eq "$b" ]; then
+      # code
+   fi
+
+   # String comparison
+   if [ "$string1" == "$string2" ]; then
+      # code
+   fi
+
+#### 15. Case Statement
+   case "$variable" in
+      pattern1)
+         # code
+         ;;
+      pattern2)
+         # code
+         ;;
+      *)
+         # default code
+         ;;
+   esac
+
+#################################################################################################
+#################################################################################################

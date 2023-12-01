@@ -1,0 +1,8 @@
+alarm
+pause
+kill
+signal
+getpid
+getpgid
+setpid
+setpgid
