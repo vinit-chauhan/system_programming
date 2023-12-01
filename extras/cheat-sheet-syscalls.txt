@@ -1,0 +1,223 @@
+######################################## System Calls ########################################
+
+1. `open()` system call:
+   - Arguments: `const char *pathname`, `int flags`, `mode_t mode`.
+   - Return Type: `int` (file descriptor).
+   - Return Conditions: Returns a non-negative file descriptor on success or -1 on failure, setting `errno` to indicate the error.
+
+2. `read()` system call:
+   - Arguments: `int fd`, `void *buf`, `size_t count`.
+   - Return Type: `ssize_t` (number of bytes read).
+   - Return Conditions: Returns the number of bytes read on success, 0 if end-of-file is reached, or -1 on error, setting `errno` accordingly.
+
+3. `write()` system call:
+   - Arguments: `int fd`, `const void *buf`, `size_t count`.
+   - Return Type: `ssize_t` (number of bytes written).
+   - Return Conditions: Returns the number of bytes written on success or -1 on error, setting `errno` as appropriate.
+
+4. `lseek()` system call:
+   - Arguments: `int fd`, `off_t offset`, `int whence`.
+   - Return Type: `off_t` (new file offset).
+   - Return Conditions: Returns the new file offset on success or -1 on error.
+
+5. `close()` system call:
+   - Arguments: `int fd`.
+   - Return Type: `int`.
+   - Return Conditions: Returns 0 on success, -1 on failure.
+
+6. `fork()` system call:
+   - No arguments.
+   - Return Type: `pid_t` (child process ID in the parent, 0 in the child, -1 on failure).
+   - Return Conditions: Returns the child's process ID in the parent process, 0 in the child process, and -1 on failure.
+
+7. `exit()` system call:
+   - Argument: `int status`.
+   - No return value.
+   - Always terminates the calling process.
+
+8. `wait()` system call:
+   - Argument: `int *status`.
+   - Return Type: `pid_t` (child process ID).
+   - Return Conditions: Returns the child's process ID on success or -1 on failure.
+
+9. `waitpid()` system call:
+   - Arguments: `pid_t pid`, `int *status`, `int options`.
+   - Return Type: `pid_t` (child process ID).
+   - Return Conditions: Returns the child's process ID on success or -1 on failure.
+
+10. `exec()` family of system calls (e.g., `execv()`, `execvp()`, `execl()`, `execlp()`):
+    - Arguments vary based on the specific function but generally include the program name and command-line arguments.
+    - Return Type: These functions do not return if successful. They replace the current process with a new program. If there's an error, they return -1, setting `errno` accordingly.
+
+######################################## Macros ########################################
+
+1. `WIFEXITED(status)`:
+   - Argument: `int status` (typically the status returned by `wait()` or `waitpid()`).
+   - Return Type: `int` (true or false).
+   - Return Conditions: Returns true if the child process terminated normally by calling `exit()` or similar, and false if not.
+
+2. `WEXITSTATUS(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (exit status).
+   - Return Conditions: Returns the exit status of a child process that has terminated normally. Only meaningful if `WIFEXITED(status)` is true.
+
+3. `WIFSIGNALED(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (true or false).
+   - Return Conditions: Returns true if the child process was terminated due to a signal, and false if not.
+
+4. `WTERMSIG(status)`:
+   - Argument: `int status`.
+   - Return Type: `int` (signal number).
+   - Return Conditions: Returns the signal number that caused the termination of the child process. Only meaningful if `WIFSIGNALED(status)` is true.
+
+These system calls and macros are essential for process management, file I/O, and handling the exit status and termination conditions of child processes in Unix-like operating systems.
+
+########################################## Commands #########################################
+
+1. **`alarm(seconds)`:**
+   - **Usage:** `unsigned int alarm(unsigned int seconds)`
+   - **Arguments:** Sets an alarm to send the `SIGALRM` signal to the calling process after the specified number of seconds.
+   - **Return Type:** Returns the number of seconds remaining on any previously set alarm.
+   - **Gotchas:** If an alarm was previously set and not canceled, calling `alarm(0)` does not cancel the existing alarm; it merely resets the alarm timer to zero.
+   - **Scenario:** You might use `alarm` to implement a timeout mechanism for a specific operation.
+
+2. **`pause()`:**
+   - **Usage:** `int pause(void)`
+   - **Arguments:** None.
+   - **Return Type:** On success, `-1` is returned with `errno` set to `EINTR` (interrupted system call).
+   - **Gotchas:** It is possible for a signal to interrupt the `pause` system call before it goes to sleep. Ensure proper signal handling to avoid unexpected behavior.
+   - **Scenario:** Use `pause` in conjunction with signal handlers to synchronize processes or threads.
+
+3. **`kill(pid, signal)`:**
+   - **Usage:** `int kill(pid_t pid, int sig)`
+   - **Arguments:** Specifies the process ID (`pid`) and the signal to send (`sig`).
+   - **Return Type:** Returns `0` on success, `-1` on failure with `errno` indicating the error.
+   - **Gotchas:** Sending a signal doesn't guarantee immediate termination or response. Some signals can be caught or ignored by the receiving process.
+   - **Scenario:** You might use `kill` to request a process to gracefully terminate by sending it a `SIGTERM` signal.
+
+
+4. **`signal(signum, handler)`:**
+   - **Usage:** `void (*signal(int signum, void (*handler)(int)))(int)`
+   - **Arguments:** Specifies the signal (`signum`) and a function pointer to the signal handler (`handler`).
+   - **Return Type:** Returns the previous handler function for the specified signal.
+   - **Gotchas:** The `signal` function is considered obsolete. It is recommended to use `sigaction` for more predictable and reliable signal handling.
+   - **Scenario:** Use `signal` to set up a custom handler for signals like `SIGINT` to perform cleanup before exiting.
+
+5. **`getpid()`:**
+   - **Usage:** `pid_t getpid(void)`
+   - **Arguments:** None.
+   - **Return Type:** Returns the process ID of the calling process.
+   - **Gotchas:** Process IDs are unique only within a given namespace. Be cautious when relying on PID values for process identification.
+   - **Scenario:** You might use `getpid` to uniquely identify a process within a system.
+
+
+6. **`getpgid(pid)`:**
+   - **Usage:** `pid_t getpgid(pid_t pid)`
+   - **Arguments:** Specifies the process ID (`pid`).
+   - **Return Type:** Returns the process group ID of the specified process.
+   - **Gotchas:** Be aware of the differences between process groups and sessions in Unix. Understanding session and process group management is crucial for job control in shells.
+   - **Scenario:** Use `getpgid` to obtain the process group ID of a specific process for job control purposes.
+
+
+8. **`setpgid(pid, pgid)`:**
+   - **Usage:** `int setpgid(pid_t pid, pid_t pgid)`
+   - **Arguments:** Specifies the process ID (`pid`) and the process group ID (`pgid`).
+   - **Return Type:** Returns `0` on success, `-1` on failure with `errno` indicating the error.
+   - **Gotchas:** Changing the process group ID may affect the job control behavior. It's essential to understand how process groups work in Unix.
+   - **Scenario:** You might use `setpgid` to place a process into a specific process group for job control.
+
+9. **`pipe(fds)`:**
+   - **Usage:** `int pipe(int fds[2])`
+   - **Arguments:** Takes an array `fds` of two integers to store the file descriptors for the read and write ends of the pipe.
+   - **Return Type:** Returns `0` on success, `-1` on failure with `errno` indicating the error.
+   - **Gotchas:** Pipes have limited capacity, and if the data is not consumed promptly, the writer may block.
+   - **Scenario:** Use `pipe` to establish communication between two processes, where one writes to the pipe (`fds[1]`) and the other reads from it (`fds[0]`).
+
+10. **`dup(oldfd)`:**
+    - **Usage:** `int dup(int oldfd)`
+    - **Arguments:** Specifies the file descriptor to duplicate (`oldfd`).
+    - **Return Type:** Returns a new file descriptor or `-1` on failure with `errno` indicating the error.
+    - **Gotchas:** Duplication of file descriptors may lead to unexpected behavior if not handled carefully. Closing the original and duplicated descriptors can affect each other.
+    - **Scenario:** Use `dup` to duplicate a file descriptor, for example, to redirect output to a file.
+
+11. **`dup2(oldfd, newfd)`:**
+    - **Usage:** `int dup2(int oldfd, int newfd)`
+    - **Arguments:** Specifies the old file descriptor (`oldfd`) and the new file descriptor (`newfd`).
+    - **Return Type:** Returns the new file descriptor or `-1` on failure with `errno` indicating the error.
+    - **Gotchas:** If `newfd` is already open, it will be closed before the duplication. This may cause unintended side effects if `newfd` is used elsewhere.
+    - **Scenario:** Use `dup2` to redirect a file descriptor to a specific
+
+ value, such as redirecting standard output to a file.
+
+12. **`mkfifo(path, mode)`:**
+    - **Usage:** `int mkfifo(const char *path, mode_t mode)`
+    - **Arguments:** Specifies the path of the named pipe (`path`) and the permissions (`mode`).
+    - **Return Type:** Returns `0` on success, `-1` on failure with `errno` indicating the error.
+    - **Gotchas:** If a named pipe (FIFO) already exists with the specified path, creating a new one may fail unless the `O_CREAT` flag is used.
+    - **Scenario:** Use `mkfifo` to create a named pipe for interprocess communication between two processes.
+
+13. **`unlink(path)`:**
+    - **Usage:** `int unlink(const char *path)`
+    - **Arguments:** Specifies the path of the file or named pipe to delete (`path`).
+    - **Return Type:** Returns `0` on success, `-1` on failure with `errno` indicating the error.
+    - **Gotchas:** Removing a file or a named pipe using `unlink` does not close existing file descriptors pointing to it. Existing processes may still access the file.
+    - **Scenario:** Use `unlink` to delete a file or remove the link to a named pipe after it is no longer needed.
+
+### System Calls:
+
+1. **`pthread_create(thread, attr, start_routine, arg)`:**
+    - **Usage:** `int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg)`
+    - **Arguments:** Takes pointers to a thread identifier (`thread`), thread attributes (`attr`), a function (`start_routine`), and an argument for the function (`arg`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Make sure the memory allocated for thread attributes (`attr`) is valid and not deallocated before the thread creation.
+    - **Scenario:** Use `pthread_create` to spawn a new thread for concurrent execution of tasks.
+
+2. **`pthread_join(thread, value_ptr)`:**
+    - **Usage:** `int pthread_join(pthread_t thread, void **value_ptr)`
+    - **Arguments:** Specifies the thread to wait for (`thread`) and a pointer to store the exit status of the joined thread (`value_ptr`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Failure to join a thread may result in a "zombie" thread, which consumes system resources until joined. Always join threads to clean up resources.
+    - **Scenario:** Use `pthread_join` to synchronize the main thread with the termination of a spawned thread.
+
+3. **`pthread_self()`:**
+    - **Usage:** `pthread_t pthread_self(void)`
+    - **Arguments:** None.
+    - **Return Type:** Returns the thread ID of the calling thread.
+    - **Gotchas:** The returned thread ID is not guaranteed to be unique across all threads in the system. It is only unique within the process.
+    - **Scenario:** Use `pthread_self` to obtain the thread ID of the current thread for identification purposes.
+
+4. **`pthread_exit(value_ptr)`:**
+    - **Usage:** `void pthread_exit(void *value_ptr)`
+    - **Arguments:** Specifies the exit status of the thread (`value_ptr`).
+    - **Return Type:** None.
+    - **Gotchas:** If a thread exits without being joined, its resources might not be reclaimed, leading to potential memory leaks.
+    - **Scenario:** Use `pthread_exit` to gracefully terminate a thread and provide an exit status.
+
+5. **`pthread_attr_init(attr)`:**
+    - **Usage:** `int pthread_attr_init(pthread_attr_t *attr)`
+    - **Arguments:** Takes a pointer to a thread attributes object (`attr`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Always initialize thread attributes before using them. Failing to do so may result in undefined behavior.
+    - **Scenario:** Use `pthread_attr_init` to initialize attributes before creating a thread with specific properties.
+
+6. **`pthread_attr_destroy(attr)`:**
+    - **Usage:** `int pthread_attr_destroy(pthread_attr_t *attr)`
+    - **Arguments:** Takes a pointer to a thread attributes object (`attr`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Destroying thread attributes does not affect already created threads. It only releases the resources associated with the attributes.
+    - **Scenario:** Use `pthread_attr_destroy` to release resources associated with thread attributes.
+
+7. **`pthread_attr_getdetachstate(attr, detachstate)`:**
+    - **Usage:** `int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *detachstate)`
+    - **Arguments:** Takes a pointer to a thread attributes object (`attr`) and a pointer to store the detach state (`detachstate`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Be aware of whether a thread is detached or joinable. Detached threads release their resources automatically upon termination.
+    - **Scenario:** Use `pthread_attr_getdetachstate` to query whether a thread is created as detached or joinable.
+
+8. **`pthread_attr_setdetachstate(attr, detachstate)`:**
+    - **Usage:** `int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate)`
+    - **Arguments:** Takes a pointer to a thread attributes object (`attr`) and the detach state (`detachstate`).
+    - **Return Type:** Returns `0` on success, an error code on failure.
+    - **Gotchas:** Changing the detach state of a thread after it has started executing may lead to undefined behavior.
+    - **Scenario:** Use `pthread_attr_setdetachstate` to set whether a thread is created as detached or joinable.
