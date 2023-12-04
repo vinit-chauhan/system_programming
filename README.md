@@ -15,3 +15,7 @@ Trivial variables   i,x,n,f etc...
 Local variables     lower_case or lowerCase
 Global variables    g_lowerCase or g_lower_case (searchable by g_ prefix)
 ```
+
+Knowledge Base:
+
+* <https://hpc.ua.edu/wp-content/uploads/2022/02/Linux_bash_cheat_sheet.pdf>

@@ -22,8 +22,8 @@ handler_int(void* arg) {
 int
 main() {
     pthread_t tid;
-    int ret_int_value = -1;
-    int* ret_int = &ret_int_value;
+    int* ret_int = malloc(sizeof(int));
+    *ret_int = 0;
     char* ret = "\0";
 
     // pthread_create(&tid, NULL, &handler, ret);
