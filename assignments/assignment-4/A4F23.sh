@@ -13,8 +13,9 @@ home_dir=/media/vinit-chauhan/code/github.com/vinit-chauhan/uwindsor_asp/assignm
 exclude_dir=$home_dir/backup
 
 backup_dir=$home_dir/backup/cb
-
 backup_tmp_dir=$backup_dir/_tmp
+ib_backup_dir=$home_dir/backup/ib
+ib_backup_tmp_dir=$backup_dir/_tmp
 
 cd $home_dir
 
@@ -62,8 +63,11 @@ cb_iterate_directory() {
 
 ib_iterate_directory() {
     cru_dir=$1
+
+    # TODO: Find newest file among all files in backup directory
+
     # iterate over all files in home directory
-    for file in $(find $1 -type f -newer "$backup_dir/$name"); do
+    for file in $(find $1 -type f -newer "$ib_backup_dir/$name"); do
 
         temp=${file##"$home_dir/"}
 
@@ -110,7 +114,6 @@ complete_backup() {
 
 incremental_backup() {
 
-    # TODO: get newest file among all files in backup directory
     name=$(ls -t $backup_dir/*.tar | head -n 1)
     name=${temp_name##*/}
 
@@ -123,7 +126,7 @@ incremental_backup() {
 
         # create tar file and then remove backup tmp directory
         cd $backup_tmp_dir &&
-            tar -cz -f $backup_dir/$ib_name * && cd $home_dir && rm -rf $backup_tmp_dir
+            tar -cz -f $backup_dir/$ib_name $(ls -A) && cd $home_dir && rm -rf $backup_tmp_dir
 
         # add entry to backup log
         echo $(date) $ib_name 'was created' >>$backup_dir/backup.log
@@ -136,24 +139,29 @@ incremental_backup() {
 
 }
 
-# check if backup directory exists
-if [ ! -d $backup_dir ]; then
-    mkdir -p $backup_dir
-fi
+check_backup_dir() {
+    # check if backup directory exists
+    if [ ! -d $backup_dir ]; then
+        mkdir -p $backup_dir
+    fi
 
-# check if backup tmp directory exists
-if [ ! -d $backup_tmp_dir ]; then
-    mkdir -p $backup_tmp_dir
-fi
+    # check if backup tmp directory exists
+    if [ ! -d $backup_tmp_dir ]; then
+        mkdir -p $backup_tmp_dir
+    fi
 
-# create backup log
-if [ ! -f $backup_dir/backup.log ]; then
-    touch $backup_dir/backup.log
-fi
+    # create backup log
+    if [ ! -f $backup_dir/backup.log ]; then
+        touch $backup_dir/backup.log
+    fi
+
+}
 
 interval=15
 
 while (true); do
+
+    check_backup_dir
     complete_backup
     sleep $interval
 
@@ -161,6 +169,7 @@ while (true); do
         break
     fi
 
+    check_backup_dir
     incremental_backup
     sleep $interval
 
@@ -168,12 +177,14 @@ while (true); do
         break
     fi
 
+    check_backup_dir
     incremental_backup
     sleep $interval
 
     if [ $is_stopped == true ]; then
         break
     fi
+    check_backup_dir
     incremental_backup
     sleep $interval
 
