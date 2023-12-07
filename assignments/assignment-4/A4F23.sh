@@ -18,6 +18,15 @@ backup_tmp_dir=$backup_dir/_tmp
 
 cd $home_dir
 
+is_stopped=false
+
+signal_handler() {
+    echo Stopping backup script
+    is_stopped=true
+}
+
+trap signal_handler SIGINT
+
 cb_iterate_directory() {
     # iterate over all files in home directory
     for file in $(ls $1); do
@@ -70,8 +79,6 @@ ib_iterate_directory() {
             cp $file ${temp%/*}
         fi
 
-        # echo $backup_tmp_dir${file#$home_dir}
-
     done
 }
 
@@ -104,12 +111,10 @@ complete_backup() {
 incremental_backup() {
 
     # TODO: get newest file among all files in backup directory
+    name=$(ls -t $backup_dir/*.tar | head -n 1)
+    name=${temp_name##*/}
+
     ib_name=$(generate_file_name ib)
-    if [ ! -f $backup_dir/$ib_name ]; then
-        name=$(generate_file_name cb)
-    else
-        name=$ib_name
-    fi
 
     if [ $(find $home_dir -type f -newer "$backup_dir/$name" | wc -l) -gt 0 ]; then
 
@@ -146,13 +151,35 @@ if [ ! -f $backup_dir/backup.log ]; then
     touch $backup_dir/backup.log
 fi
 
-# check if backup is required
-if [ ! -f $backup_dir/$(generate_file_name cb) ]; then
-    echo "Creating Complete Backup"
-    complete_backup
-else
-    echo "Creating Incremental Backup"
-    incremental_backup
-fi
+interval=15
 
-echo done
+while (true); do
+    complete_backup
+    sleep $interval
+
+    if [ $is_stopped == true ]; then
+        break
+    fi
+
+    incremental_backup
+    sleep $interval
+
+    if [ $is_stopped == true ]; then
+        break
+    fi
+
+    incremental_backup
+    sleep $interval
+
+    if [ $is_stopped == true ]; then
+        break
+    fi
+    incremental_backup
+    sleep $interval
+
+    if [ $is_stopped == true ]; then
+        break
+    fi
+done
+
+echo "Backup script stopped"
