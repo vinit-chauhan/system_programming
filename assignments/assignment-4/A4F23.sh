@@ -10,11 +10,10 @@ home_dir=$HOME
 # temp
 home_dir=/media/vinit-chauhan/code/github.com/vinit-chauhan/uwindsor_asp/assignments/assignment-4/home.bkp
 
-exclude_dir=$home_dir/backup
-
-backup_dir=$home_dir/backup/cb
-backup_tmp_dir=$backup_dir/_tmp
-ib_backup_dir=$home_dir/backup/ib
+backup_dir=$home_dir/home/backup
+cb_backup_dir=$backup_dir/cb
+cb_backup_tmp_dir=$backup_dir/_tmp
+ib_backup_dir=$backup_dir/ib
 ib_backup_tmp_dir=$backup_dir/_tmp
 
 cd $home_dir
@@ -39,12 +38,12 @@ cb_iterate_directory() {
 
             # check if directory is backup directory
             # if yes then skip
-            if [ $temp == $exclude_dir ]; then
+            if [ $temp == $backup_dir ]; then
                 continue
             fi
 
             # create directory in backup tmp directory
-            mkdir -p $backup_tmp_dir${temp#"$home_dir"}
+            mkdir -p $cb_backup_tmp_dir${temp#"$home_dir"}
 
             cd $file
 
@@ -54,7 +53,7 @@ cb_iterate_directory() {
         elif [ -f $file ]; then
             # if file is .c or .txt then backup
             if [[ $file == *.c || $file == *.txt ]]; then
-                cp $file $backup_tmp_dir${temp#"$home_dir"}
+                cp $file $cb_backup_tmp_dir${temp#"$home_dir"}
             fi
         fi
         cd $1
@@ -64,18 +63,16 @@ cb_iterate_directory() {
 ib_iterate_directory() {
     cru_dir=$1
 
-    # TODO: Find newest file among all files in backup directory
-
     # iterate over all files in home directory
-    for file in $(find $1 -type f -newer "$ib_backup_dir/$name"); do
+    for file in $(find $1 -type f -newer "$backup_dir/timestamp"); do
 
         temp=${file##"$home_dir/"}
 
-        if [[ $temp == backup/* ]]; then
+        if [[ $temp == home/backup/* ]]; then
             continue
         fi
 
-        temp=$backup_tmp_dir${file#$home_dir}
+        temp=$ib_backup_tmp_dir${file#$home_dir}
 
         mkdir -p ${temp%/*}
 
@@ -102,11 +99,14 @@ complete_backup() {
     name=$(generate_file_name cb)
 
     # create tar file and then remove backup tmp directory
-    cd $backup_tmp_dir &&
-        tar -cz -f $backup_dir/$name * && cd $home_dir && rm -rf $backup_tmp_dir
+    cd $cb_backup_tmp_dir && rm -rf $cb_backup_dir/home &&
+        tar -cz -f $cb_backup_dir/$name * && cd $home_dir && rm -rf $cb_backup_tmp_dir
 
     # create backup log entry
     echo $(date) $name was created >>$backup_dir/backup.log
+
+    # create a timestamp file
+    touch $backup_dir/timestamp
 
     # increment complete backup counter
     cb_counter=$((cb_counter + 1))
@@ -114,22 +114,22 @@ complete_backup() {
 
 incremental_backup() {
 
-    name=$(ls -t $backup_dir/*.tar | head -n 1)
-    name=${temp_name##*/}
-
     ib_name=$(generate_file_name ib)
 
-    if [ $(find $home_dir -type f -newer "$backup_dir/$name" | wc -l) -gt 0 ]; then
+    if [ $(find $home_dir -type f -newer "$backup_dir/timestamp" | wc -l) -gt 0 ]; then
 
         # iterate over all files in home directory
         ib_iterate_directory $home_dir
 
         # create tar file and then remove backup tmp directory
-        cd $backup_tmp_dir &&
-            tar -cz -f $backup_dir/$ib_name $(ls -A) && cd $home_dir && rm -rf $backup_tmp_dir
+        cd $ib_backup_tmp_dir && rm -rf $ib_backup_dir/home &&
+            tar -cz -f $ib_backup_dir/$ib_name $(ls -A) && cd $home_dir && rm -rf $ib_backup_tmp_dir
 
         # add entry to backup log
         echo $(date) $ib_name 'was created' >>$backup_dir/backup.log
+
+        # create a timestamp file
+        touch $backup_dir/timestamp
 
         # increment incremental backup counter
         ib_counter=$((ib_counter + 1))
@@ -141,13 +141,23 @@ incremental_backup() {
 
 check_backup_dir() {
     # check if backup directory exists
-    if [ ! -d $backup_dir ]; then
-        mkdir -p $backup_dir
+    if [ ! -d $ib_backup_dir ]; then
+        mkdir -p $ib_backup_dir
     fi
 
     # check if backup tmp directory exists
-    if [ ! -d $backup_tmp_dir ]; then
-        mkdir -p $backup_tmp_dir
+    if [ ! -d $ib_backup_tmp_dir ]; then
+        mkdir -p $ib_backup_tmp_dir
+    fi
+
+    # check if backup directory exists
+    if [ ! -d $cb_backup_dir ]; then
+        mkdir -p $cb_backup_dir
+    fi
+
+    # check if backup tmp directory exists
+    if [ ! -d $cb_backup_tmp_dir ]; then
+        mkdir -p $cb_backup_tmp_dir
     fi
 
     # create backup log
@@ -157,6 +167,7 @@ check_backup_dir() {
 
 }
 
+# interval between backups
 interval=15
 
 while (true); do
