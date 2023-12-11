@@ -1,13 +1,32 @@
+#include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#define PORT     5000
+#define MAX_LINE 1024
+
+int socket_fd;
+
+void
+func_term(int signum) {
+    printf("Terminating client...\n");
+    close(socket_fd);
+    exit(0);
+}
 
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
-    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    signal(SIGINT, func_term);
+
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
         perror("socket");
         return 1;
@@ -24,12 +43,16 @@ main(int argc, char* argv[]) {
         printf("connected to the server..\n");
     }
 
-    char buffer[1024];
+    char* write_buff = malloc(MAX_LINE * sizeof(char));
+    char* read_buff = malloc(MAX_LINE * sizeof(char));
 
-    read(socket_fd, buffer, 1024);
-    printf("server: %s\n", buffer);
-
-    write(socket_fd, "hello world\n", 12);
+    while (1) {
+        printf("Client$ ");
+        fflush(stdout);
+        fgets(write_buff, MAX_LINE, stdin);
+        printf("Client: %s\n", write_buff);
+        write(socket_fd, write_buff, strlen(write_buff) - 1);
+    }
 
     return 0;
 }
