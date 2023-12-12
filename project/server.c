@@ -119,11 +119,12 @@ execute_command(char* command, char* output) {
 
     fgets(output, MAX_LINE, op);
 
-    pclose(op);
-
     if (output[strlen(output) - 1] == '\n') {
         output[strlen(output) - 1] = '\0';
     }
+
+    printf("Output: %s\n", output);
+    pclose(op);
 }
 
 void
@@ -133,12 +134,14 @@ pclientrequest(int l_socket_fd) {
         perror("fork");
         exit(1);
     } else if (pid == 0) {
+        char *write_buff, *read_buff;
 
         signal(SIGTERM, terminate_fork);
 
-        char* read_buff = malloc(MAX_LINE * sizeof(char));
-        char* write_buff = malloc(MAX_LINE * sizeof(char));
         while (1) {
+            read_buff = malloc(MAX_LINE * sizeof(char));
+            memset(read_buff, 0, MAX_LINE);
+
             // wait for client to send command
             int rcv = -1;
             if ((rcv = recv(l_socket_fd, read_buff, MAX_LINE, 0)) < 0) {
@@ -152,6 +155,11 @@ pclientrequest(int l_socket_fd) {
                 printf("Received %d bytes: %s\n", rcv, read_buff);
             }
 
+            read_buff[rcv] = '\0';
+
+            printf("Read_buff: %s: %d\n", read_buff,
+                   strcmp(read_buff, "quitc"));
+
             if (strcmp(read_buff, "quitc") == 0) {
                 printf("Client %d disconnected\n", l_socket_fd);
                 unset_pid(getpid());
@@ -162,17 +170,25 @@ pclientrequest(int l_socket_fd) {
 
             char* cmd = malloc(MAX_LINE * sizeof(char));
             process_command(read_buff, cmd);
-            // printf("Command: %s\n", cmd);
+            free(read_buff);
+
+            // create write buffer and initialize with 0
+            write_buff = malloc(MAX_LINE * sizeof(char));
+            memset(write_buff, 0, MAX_LINE);
 
             execute_command(cmd, write_buff);
             printf("Write_buff: %s\n", write_buff);
+            free(cmd);
 
-            if (write_buff == NULL) {
-                write_buff = "No file found\n";
+            if (write_buff[0] == '\0') {
+                int snd = send(l_socket_fd, "No fule found\n", 14, 0);
+                printf("Sent %d bytes\n", snd);
+            } else {
+                int snd = send(l_socket_fd, write_buff, strlen(write_buff), 0);
+                printf("Sent %d bytes\n", snd);
             }
 
-            int snd = send(l_socket_fd, write_buff, strlen(write_buff), 0);
-            printf("Sent %d bytes\n", snd);
+            free(write_buff);
         }
     } else {
         set_pid(pid);
