@@ -70,6 +70,7 @@ unset_pid(int pid) {
             return 0;
         }
     }
+    num_clients--;
     return 1;
 }
 
@@ -93,6 +94,7 @@ pclientrequest(int l_socket_fd) {
                 exit(1);
             } else if (rcv == 0) {
                 printf("Server disconnected\n");
+                unset_pid(getpid());
                 break;
             } else {
                 printf("%s\n", read_buff);
@@ -158,7 +160,7 @@ main(int argc, char* argv[]) {
             perror("accept");
             break;
         } else {
-            printf("Connection accepted from client: %d\n", num_clients);
+            printf("Connection accepted from client: %d\n", num_clients++);
         }
 
         pclientrequest(c_socket_fd[i - 1]);

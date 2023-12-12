@@ -80,8 +80,8 @@ validate_commands(char* cmd) {
             }
         }
 
-    } else if (strcmp(tokens[0], "getdb") == 0
-               || strcmp(tokens[0], "getda") == 0) {
+    } else if (strcmp(tokens[0], "getfdb") == 0
+               || strcmp(tokens[0], "getfda") == 0) {
         // check if there is 1 argument and it is a date.
         if (count != 2) {
             printf("Error: Invalid format: Usage: %s date \n", tokens[0]);
@@ -155,9 +155,11 @@ main(int argc, char* argv[]) {
             continue;
         }
 
-        printf("\n\n %s:%d \n\n", write_buff, strlen(write_buff));
+        // send command to server
         send(socket_fd, write_buff, strlen(write_buff), 0);
 
+        char* cmd = strtok(write_buff, " ");
+        // wait for server to send response
         if ((rcv = recv(socket_fd, read_buff, MAX_LINE, 0)) < 0) {
             perror("recv");
             exit(1);
@@ -167,6 +169,8 @@ main(int argc, char* argv[]) {
         } else {
             printf("%s\n", read_buff);
         }
+
+        write_buff = NULL;
     }
 
     return 0;
