@@ -122,19 +122,25 @@ validate_commands(char* cmd) {
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
+    char* write_buff = malloc(MAX_LINE * sizeof(char));
+    char* read_buff = malloc(MAX_LINE * sizeof(char));
+    int rcv = -1;
 
     signal(SIGINT, func_term);
 
+    // create socket
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
         perror("socket");
         return 1;
     }
 
+    // Initialize socket structure
     servAdd.sin_family = AF_INET;
     servAdd.sin_addr.s_addr = inet_addr("127.0.0.1");
     servAdd.sin_port = htons((uint16_t)5000);
 
+    // connect the client socket to server socket
     if (connect(socket_fd, (struct sockaddr*)&servAdd, sizeof(servAdd)) != 0) {
         printf("connection with the server failed...\n");
         exit(0);
@@ -142,9 +148,12 @@ main(int argc, char* argv[]) {
         printf("connected to the server..\n");
     }
 
-    char* write_buff = malloc(MAX_LINE * sizeof(char));
-    char* read_buff = malloc(MAX_LINE * sizeof(char));
-    int rcv = -1;
+    // create f23project directory in home dir
+    if (system("test -d ~/f23project") != 0) {
+        system("mkdir ~/f23project");
+    }
+
+    // go into client cli loop
     while (1) {
         printf("Client$ ");
         fflush(stdout);
@@ -159,6 +168,7 @@ main(int argc, char* argv[]) {
         send(socket_fd, write_buff, strlen(write_buff), 0);
 
         char* cmd = strtok(write_buff, " ");
+
         // wait for server to send response
         if ((rcv = recv(socket_fd, read_buff, MAX_LINE, 0)) < 0) {
             perror("recv");
