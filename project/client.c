@@ -122,8 +122,7 @@ validate_commands(char* cmd) {
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
-    char* write_buff = malloc(MAX_LINE * sizeof(char));
-    char* read_buff = malloc(MAX_LINE * sizeof(char));
+
     int rcv = -1;
 
     signal(SIGINT, func_term);
@@ -155,6 +154,8 @@ main(int argc, char* argv[]) {
 
     // go into client cli loop
     while (1) {
+        char* write_buff = malloc(MAX_LINE * sizeof(char));
+        char* read_buff = malloc(MAX_LINE * sizeof(char));
         printf("Client$ ");
         fflush(stdout);
         fgets(write_buff, MAX_LINE, stdin);
@@ -180,7 +181,8 @@ main(int argc, char* argv[]) {
             printf("%s\n", read_buff);
         }
 
-        write_buff = NULL;
+        free(write_buff);
+        free(read_buff);
     }
 
     return 0;
