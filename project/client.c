@@ -45,13 +45,22 @@ main(int argc, char* argv[]) {
 
     char* write_buff = malloc(MAX_LINE * sizeof(char));
     char* read_buff = malloc(MAX_LINE * sizeof(char));
-
+    int rcv = -1;
     while (1) {
         printf("Client$ ");
         fflush(stdout);
         fgets(write_buff, MAX_LINE, stdin);
-        printf("Client: %s\n", write_buff);
-        write(socket_fd, write_buff, strlen(write_buff) - 1);
+        send(socket_fd, write_buff, strlen(write_buff) - 1, 0);
+
+        if ((rcv = recv(socket_fd, read_buff, MAX_LINE, 0)) < 0) {
+            perror("recv");
+            exit(1);
+        } else if (rcv == 0) {
+            printf("Server disconnected\n");
+            break;
+        } else {
+            printf("%s\n", read_buff);
+        }
     }
 
     return 0;

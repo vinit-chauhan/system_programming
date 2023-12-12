@@ -5,60 +5,99 @@
 #include <string.h>
 #include <sys/socket.h> //for socket APIs
 #include <sys/types.h>
-#include <unistd.h> //for read and write
+#include <unistd.h>
 #include <wait.h>
 
 #define PORT        5000
 #define MAX_LINE    1024
 #define MAX_CLIENTS 5
 
-int socket_fd;
+volatile sig_atomic_t quit = 0;
 
-// request
-// -- create fork
-// -- read from socket
-// -- parse request
-// -- execute request
-// -- write to socket
-// -- close socket
+int server_pid;
+int socket_fd;
+int c_socket_fd[MAX_CLIENTS];
+int* c_pid_pool;
+int num_clients = 0;
 
 void
-pclientrequest(int l_socket_fd) {
-    int pid;
-
-    if ((pid = fork()) < 0) {
-        perror("fork");
-        exit(1);
-    } else if (pid == 0) {
-        while (1) {
-            char* buffer = malloc(MAX_LINE * sizeof(char));
-            read(l_socket_fd, buffer, MAX_LINE);
-
-            printf("Client: %s, %d\n", buffer, strcmp(buffer, "quitc"));
-
-            if (strcmp(buffer, "quitc") == 0) {
-                printf("Client %d disconnected\n", l_socket_fd);
-                // close(l_socket_fd);
-                shutdown(l_socket_fd, SHUT_RDWR);
-                break;
-            }
-
-            printf("After check Client: %s\n", buffer);
-        }
-    }
+terminate_fork(int signum) {
+    printf("Terminating Active Connection...\n");
+    quit = 1;
+    exit(0);
 }
 
 void
 terminate(int signum) {
-    printf("Terminating server...\n");
+    printf("Terminating Server...\n");
+    quit = 1;
+
+    // Close all client connections
+    for (int i = 0; i < num_clients; i++) {
+        if (c_socket_fd[i] == 0) {
+            continue;
+        }
+        close(c_socket_fd[i]);
+        sleep(1);
+        kill(c_pid_pool[i], SIGTERM);
+    }
+
     shutdown(socket_fd, SHUT_RDWR);
-    exit(0);
+    close(socket_fd);
+}
+
+void
+pclientrequest(int l_socket_fd) {
+
+    if ((c_pid_pool[num_clients++] = fork()) < 0) {
+        perror("fork");
+        exit(1);
+    } else if (c_pid_pool[num_clients - 1] == 0) {
+
+        signal(SIGTERM, terminate_fork);
+
+        char* read_buff = malloc(MAX_LINE * sizeof(char));
+        char* write_buff = malloc(MAX_LINE * sizeof(char));
+        while (1) {
+            int rcv = -1;
+            // recv(l_socket_fd, read_buff, MAX_LINE, 0);
+            if ((rcv = recv(l_socket_fd, read_buff, MAX_LINE, 0)) < 0) {
+                perror("recv");
+                exit(1);
+            } else if (rcv == 0) {
+                printf("Server disconnected\n");
+                break;
+            } else {
+                printf("%s\n", read_buff);
+            }
+            printf("Client: %s\n", read_buff);
+
+            if (strcmp(read_buff, "quitc") == 0) {
+                printf("Client %d disconnected\n", l_socket_fd);
+                num_clients--;
+                kill(server_pid, SIGQUIT);
+                kill(getpid(), SIGTERM);
+                break;
+            }
+
+            sprintf(write_buff, "Server: %s", read_buff);
+
+            int snd = send(l_socket_fd, write_buff, strlen(write_buff), 0);
+            printf("Sent %d bytes\n", snd);
+        }
+    }
 }
 
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
     signal(SIGINT, terminate);
+    signal(SIGQUIT, terminate);
+
+    server_pid = getpid();
+    c_pid_pool = malloc(MAX_CLIENTS * sizeof(int));
+
+    printf("Server starting...\n");
 
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
@@ -80,18 +119,22 @@ main(int argc, char* argv[]) {
         return 1;
     }
 
-    while (1) {
-        struct sockaddr_in clientAdd;
-        int l_socket_fd;
-        if ((l_socket_fd = accept(socket_fd, (struct sockaddr*)NULL, NULL))
+    printf("Server listening...\n");
+
+    int i = 0;
+    while (!quit) {
+        // will have to handle i, if client disconnects, the next client will take up empty slot.
+        if ((c_socket_fd[i++] = accept(socket_fd, (struct sockaddr*)NULL, NULL))
             == -1) {
             perror("accept");
-            exit(1);
+            break;
         } else {
-            printf("Connection accepted from client: %d\n", l_socket_fd);
+            printf("Connection accepted from client: %d\n", num_clients);
         }
 
-        pclientrequest(l_socket_fd);
+        pclientrequest(c_socket_fd[i - 1]);
+
+        sleep(10);
     }
 
     return 0;
