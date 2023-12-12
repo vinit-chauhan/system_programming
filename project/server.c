@@ -12,7 +12,7 @@
 #define MAX_LINE    1024
 #define MAX_CLIENTS 5
 
-volatile sig_atomic_t quit = 0;
+int quit = 0;
 
 int server_pid;
 int socket_fd;
@@ -32,8 +32,12 @@ terminate(int signum) {
     printf("Terminating Server...\n");
     quit = 1;
 
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        printf("%d\n", c_pid_pool[i]);
+    }
+
     // Close all client connections
-    for (int i = 0; i < num_clients; i++) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
         if (c_socket_fd[i] == 0) {
             continue;
         }
@@ -42,25 +46,48 @@ terminate(int signum) {
         kill(c_pid_pool[i], SIGTERM);
     }
 
+    // Close server socket
     shutdown(socket_fd, SHUT_RDWR);
     close(socket_fd);
 }
 
+int
+set_pid(int pid) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (c_pid_pool[i] == 0) {
+            c_pid_pool[i] = pid;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int
+unset_pid(int pid) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (c_pid_pool[i] == pid) {
+            c_pid_pool[i] = 0;
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void
 pclientrequest(int l_socket_fd) {
-
-    if ((c_pid_pool[num_clients++] = fork()) < 0) {
+    int pid = -1;
+    if ((pid = fork()) < 0) {
         perror("fork");
         exit(1);
-    } else if (c_pid_pool[num_clients - 1] == 0) {
+    } else if (pid == 0) {
 
         signal(SIGTERM, terminate_fork);
 
         char* read_buff = malloc(MAX_LINE * sizeof(char));
         char* write_buff = malloc(MAX_LINE * sizeof(char));
         while (1) {
+            // wait for client to send command
             int rcv = -1;
-            // recv(l_socket_fd, read_buff, MAX_LINE, 0);
             if ((rcv = recv(l_socket_fd, read_buff, MAX_LINE, 0)) < 0) {
                 perror("recv");
                 exit(1);
@@ -74,7 +101,7 @@ pclientrequest(int l_socket_fd) {
 
             if (strcmp(read_buff, "quitc") == 0) {
                 printf("Client %d disconnected\n", l_socket_fd);
-                num_clients--;
+                unset_pid(getpid());
                 kill(server_pid, SIGQUIT);
                 kill(getpid(), SIGTERM);
                 break;
@@ -85,6 +112,8 @@ pclientrequest(int l_socket_fd) {
             int snd = send(l_socket_fd, write_buff, strlen(write_buff), 0);
             printf("Sent %d bytes\n", snd);
         }
+    } else {
+        set_pid(pid);
     }
 }
 
