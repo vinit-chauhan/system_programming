@@ -21,6 +21,105 @@ func_term(int signum) {
 }
 
 int
+validate_commands(char* cmd) {
+    char* cmd_copy = malloc(strlen(cmd) * sizeof(char));
+    char* tokens[4];
+    strcpy(cmd_copy, cmd);
+    char* token = strtok(cmd_copy, " ");
+    int count = 0;
+
+    while (token != NULL) {
+        tokens[count++] = token;
+        token = strtok(NULL, " ");
+    }
+
+    if (strcmp(tokens[0], "getfn") == 0) {
+        if (count != 2) {
+            printf("Invalid command\n");
+            return 1;
+        }
+    } else if (strcmp(tokens[0], "getfz") == 0) {
+        if (count != 3) {
+            printf("Error: Invalid format: Usage: getfz size1 size2 \n");
+            return 1;
+        }
+
+        // check if the second argument is a number
+        for (int i = 0; i < strlen(tokens[1]); i++) {
+            if (tokens[1][i] < '0' || tokens[1][i] > '9') {
+                printf("Error: Argument 2 Not a Number : Usage: getfz size1 "
+                       "size2 \n");
+                return 1;
+            }
+        }
+
+        // check if the third argument is a number
+        for (int i = 0; i < strlen(tokens[2]); i++) {
+            if (tokens[2][i] < '0' || tokens[2][i] > '9') {
+                printf("Error: Argument 3 Not a Number: Usage: getfz size1 "
+                       "size2 \n");
+                return 1;
+            }
+        }
+
+    } else if (strcmp(tokens[0], "getft") == 0) {
+        if (count > 4) {
+            printf(
+                "Error: Invalid format: Usage: getft <extension list> // upto "
+                "3\n");
+            return 1;
+        }
+
+        // check if all the args are different
+        for (int i = 1; i < count; i++) {
+            for (int j = i + 1; j < count; j++) {
+                if (strcmp(tokens[i], tokens[j]) == 0) {
+                    printf("Error: File Types are not unique\n");
+                    return 1;
+                }
+            }
+        }
+
+    } else if (strcmp(tokens[0], "getdb") == 0
+               || strcmp(tokens[0], "getda") == 0) {
+        // check if there is 1 argument and it is a date.
+        if (count != 2) {
+            printf("Error: Invalid format: Usage: %s date \n", tokens[0]);
+            return 1;
+        }
+        char* date = tokens[1];
+        if (strlen(date) != 10) {
+            printf("Error: Invalid date format. Expected format: yyyy-mm-dd\n");
+            return 1;
+        }
+
+        for (int i = 0; i < 10; i++) {
+            if (i == 4 || i == 7) {
+                if (date[i] != '-') {
+                    printf("Error: Invalid date format. Expected format: "
+                           "yyyy-mm-dd\n");
+                    return 1;
+                }
+            } else {
+                if (date[i] < '0' || date[i] > '9') {
+                    printf("Error: Invalid date format. Expected format: "
+                           "yyyy-mm-dd\n");
+                    return 1;
+                }
+            }
+        }
+
+        return 0;
+
+    } else if (strcmp(tokens[0], "quitc") == 0) {
+        return 0;
+    } else {
+        printf("Invalid command\n");
+        return 1;
+    }
+}
+
+int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
 
@@ -50,7 +149,14 @@ main(int argc, char* argv[]) {
         printf("Client$ ");
         fflush(stdout);
         fgets(write_buff, MAX_LINE, stdin);
-        send(socket_fd, write_buff, strlen(write_buff) - 1, 0);
+        write_buff[strlen(write_buff) - 1] = '\0';
+
+        if (validate_commands(write_buff) == 1) {
+            continue;
+        }
+
+        printf("\n\n %s:%d \n\n", write_buff, strlen(write_buff));
+        send(socket_fd, write_buff, strlen(write_buff), 0);
 
         if ((rcv = recv(socket_fd, read_buff, MAX_LINE, 0)) < 0) {
             perror("recv");
