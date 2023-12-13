@@ -118,6 +118,21 @@ process_command(char* cmd, char* command) {
 }
 
 void
+execute_command_no_out(char* command) {
+    int stderr = dup(2);
+    int null_fd = open("/dev/null", O_WRONLY);
+    dup2(null_fd, 2);
+    FILE* op = popen(command, "r");
+    if (op == NULL) {
+        perror("popen");
+        exit(1);
+    }
+
+    dup2(stderr, 2);
+    pclose(op);
+}
+
+void
 execute_command(char* command, char* output) {
     int stderr = dup(2);
     int null_fd = open("/dev/null", O_WRONLY);
@@ -127,6 +142,8 @@ execute_command(char* command, char* output) {
         perror("popen");
         exit(1);
     }
+
+    dup2(stderr, 2);
 
     fgets(output, MAX_LINE, op);
 
@@ -144,14 +161,35 @@ process_output(int out_socket, char* command, char* output_buffer) {
     printf("Command: %s\n", command);
 
     if (output_buffer[0] == '\0') {
-        int snd = send(out_socket, "No file found", 13, 0);
+        int snd = send(out_socket, "__err_nofile", 13, 0);
     }
 
     if (strcmp(command, "getfn") == 0) {
         int snd = send(out_socket, output_buffer, strlen(output_buffer), 0);
     } else {
-        // send the tar file
-        // delete the tar file
+        int tar = open("temp.tar.gz", O_RDONLY);
+        int sent = 0;
+        // send the file size
+        while (1) {
+            char* buff = malloc(MAX_LINE * sizeof(char));
+            int read_bytes = read(tar, buff, MAX_LINE);
+            if (read_bytes == 0) {
+                break;
+            }
+            int snd = send(out_socket, buff, read_bytes, 0);
+            sent += snd;
+        }
+
+        close(tar);
+
+        printf("Sent %d bytes\n", sent);
+
+        if (remove("temp.tar.gz") != 0) {
+            perror("remove");
+            exit(1);
+        }
+
+        execute_command_no_out("rm temp.tar.gz");
     }
 }
 

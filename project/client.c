@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -8,10 +9,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define PORT     5000
-#define MAX_LINE 1024
+#define PORT          5000
+#define MAX_BUFF_SIZE 1024
 
 int socket_fd;
+char* tar_path;
 
 void
 func_term(int signum) {
@@ -121,6 +123,10 @@ validate_commands(char* cmd) {
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
+    tar_path = malloc(128 * sizeof(char));
+    tar_path = getenv("HOME");
+
+    printf("tar_path: %s\n", tar_path);
 
     int rcv = -1;
 
@@ -151,22 +157,28 @@ main(int argc, char* argv[]) {
         system("mkdir ~/f23project");
     }
 
+    // set tar destination path
+    strcat(tar_path, "/f23project/temp.tar.gz");
+
     // go into client cli loop
     while (1) {
-        char* write_buff = malloc(MAX_LINE * sizeof(char));
-        char* read_buff = malloc(MAX_LINE * sizeof(char));
+        int n = 0; // used fro multiple counters.
+        char* write_buff = malloc(MAX_BUFF_SIZE * sizeof(char));
+        char* read_buff = malloc(10 * MAX_BUFF_SIZE * sizeof(char));
         printf("Client$ ");
         fflush(stdout);
-        fgets(write_buff, MAX_LINE, stdin);
+        fgets(write_buff, MAX_BUFF_SIZE, stdin);
+        if (write_buff[0] == '\n') {
+            continue;
+        }
+
         write_buff[strlen(write_buff) - 1] = '\0';
 
         if (validate_commands(write_buff) == 1) {
-            printf("Invalid command\n");
             continue;
         }
 
         // send command to server
-        int n = 0;
         if ((n = send(socket_fd, write_buff, strlen(write_buff), 0)) < 0) {
             perror("send");
             exit(1);
@@ -176,17 +188,30 @@ main(int argc, char* argv[]) {
 
         char* cmd = strtok(write_buff, " ");
 
-        // wait for server to send response
-        if ((rcv = recv(socket_fd, read_buff, MAX_LINE, 0)) < 0) {
+        if ((rcv = recv(socket_fd, read_buff, MAX_BUFF_SIZE, 0)) < 0) {
             perror("recv");
             exit(1);
         } else if (rcv == 0) {
             printf("Server disconnected\n");
             break;
         } else {
-            printf("%s\n", read_buff);
+            printf("Received %d bytes\n", rcv);
         }
 
+        if (strcmp(read_buff, "__err_nofile") == 0) {
+            printf("No files found\n");
+            continue;
+        } else if (strcmp(cmd, "getfn") == 0) {
+            printf("%s\n", read_buff);
+            continue;
+        } else {
+            int tar_fd = open(tar_path, O_CREAT | O_WRONLY, 0644);
+            if ((n = write(tar_fd, read_buff, rcv)) < 0) {
+                perror("write");
+                exit(1);
+            }
+            close(tar_fd);
+        }
         free(write_buff);
         free(read_buff);
     }
