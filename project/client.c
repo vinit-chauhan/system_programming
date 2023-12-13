@@ -35,6 +35,11 @@ validate_commands(char* cmd) {
         token = strtok(NULL, " ");
     }
 
+    if (count < 2 && strcmp(tokens[0], "quitc") != 0) {
+        printf("Invalid command\n");
+        return 1;
+    }
+
     if (strcmp(tokens[0], "getfn") == 0) {
         if (count != 2) {
             printf("Invalid command\n");
@@ -188,14 +193,18 @@ main(int argc, char* argv[]) {
 
         char* cmd = strtok(write_buff, " ");
 
-        if ((rcv = recv(socket_fd, read_buff, MAX_BUFF_SIZE, 0)) < 0) {
+        if (strcmp(cmd, "quitc") == 0) {
+            printf("Client disconnected\n");
+            break;
+        }
+
+        memset(read_buff, 0, 10 * MAX_BUFF_SIZE);
+        if ((rcv = recv(socket_fd, read_buff, 10 * MAX_BUFF_SIZE, 0)) < 0) {
             perror("recv");
             exit(1);
         } else if (rcv == 0) {
             printf("Server disconnected\n");
             break;
-        } else {
-            printf("Received %d bytes\n", rcv);
         }
 
         if (strcmp(read_buff, "__err_nofile") == 0) {
@@ -210,6 +219,22 @@ main(int argc, char* argv[]) {
                 perror("write");
                 exit(1);
             }
+            int total_rcv = rcv;
+            while (rcv > 0 && rcv == 10 * MAX_BUFF_SIZE) {
+                if ((rcv = recv(socket_fd, read_buff, 10 * MAX_BUFF_SIZE, 0))
+                    < 0) {
+                    perror("recv");
+                    exit(1);
+                }
+                read_buff[rcv] = '\0';
+                if ((n = write(tar_fd, read_buff, rcv)) < 0) {
+                    perror("write");
+                    exit(1);
+                }
+                total_rcv += rcv;
+                // printf("Received %d bytes\n", rcv);
+            }
+            printf("Received %d bytes.\n", total_rcv);
             close(tar_fd);
         }
         free(write_buff);

@@ -9,11 +9,10 @@
 #include <unistd.h>
 #include <wait.h>
 
-#define PORT        5000
-#define MAX_LINE    1024
-#define MAX_CLIENTS 5
-
-int quit = 0;
+#define PORT          5000
+#define MAX_LINE      1024
+#define SEND_MAX_LINE 10 * 1024
+#define MAX_CLIENTS   5
 
 int server_pid;
 int socket_fd;
@@ -23,15 +22,12 @@ int num_clients = 1;
 
 void
 terminate_fork(int signum) {
-    printf("Terminating Active Connection...\n");
-    quit = 1;
     exit(0);
 }
 
 void
 terminate(int signum) {
     printf("Terminating Server...\n");
-    quit = 1;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         printf("%d\n", c_pid_pool[i]);
@@ -93,7 +89,7 @@ tokenizer(char* str, char** tokens) {
 
 void
 process_command(char* cmd, char* command) {
-    char* tokens[4];
+    char* tokens[4] = {NULL};
     tokenizer(cmd, tokens);
 
     if (strcmp(tokens[0], "getfn") == 0) {
@@ -106,12 +102,37 @@ process_command(char* cmd, char* command) {
                 tokens[1], tokens[1]);
 
     } else if (strcmp(tokens[0], "getfz") == 0) {
-        // update the temo folder to home dir.
         sprintf(command,
-                "find ~/test/ -type f -size +%sc -a -size -%sc -exec tar "
+                "find ~/ -type f -size +%sc -a -size -%sc -exec tar "
                 "czvf temp.tar.gz {} +",
                 tokens[1], tokens[2]);
     } else if (strcmp(tokens[0], "getft") == 0) {
+        char* temp = malloc(64 * sizeof(char));
+        memset(temp, 0, 64);
+
+        for (int i = 1, cur = 0; i < 4; i++) {
+            if (tokens[i] != NULL) {
+                char* temp2;
+                if (i == 3 || tokens[i + 1] == NULL) {
+                    temp2 = malloc(16 * sizeof(char));
+                    memset(temp2, 0, 16);
+                    sprintf(temp2, "-name '*.%s'", tokens[i]);
+                } else {
+                    temp2 = malloc(16 * sizeof(char));
+                    memset(temp2, 0, 16);
+                    sprintf(temp2, "-name '*.%s' -o ", tokens[i]);
+                }
+                strcat(temp, temp2);
+            }
+        }
+
+        // update the temo folder to home dir.
+        sprintf(command,
+                "find ~/ -type f \\( %s \\) -exec tar czvf temp.tar.gz {} +",
+                temp);
+
+        printf("Command: %s\n", command);
+
     } else if (strcmp(tokens[0], "getfdb") == 0) {
     } else if (strcmp(tokens[0], "getfda") == 0) {
     }
@@ -158,38 +179,40 @@ execute_command(char* command, char* output) {
 void
 process_output(int out_socket, char* command, char* output_buffer) {
 
-    printf("Command: %s\n", command);
-
     if (output_buffer[0] == '\0') {
-        int snd = send(out_socket, "__err_nofile", 13, 0);
+        int total_sent_bytes = send(out_socket, "__err_nofile", 13, 0);
+        printf("Sent %d bytes\n", total_sent_bytes);
+        return;
     }
 
     if (strcmp(command, "getfn") == 0) {
-        int snd = send(out_socket, output_buffer, strlen(output_buffer), 0);
+        int total_sent_bytes =
+            send(out_socket, output_buffer, strlen(output_buffer), 0);
+        printf("Sent %d bytes\n", total_sent_bytes);
+
     } else {
-        int tar = open("temp.tar.gz", O_RDONLY);
-        int sent = 0;
+        int tar_fd = open("temp.tar.gz", O_RDONLY);
+        int total_sent_bytes = 0;
         // send the file size
         while (1) {
-            char* buff = malloc(MAX_LINE * sizeof(char));
-            int read_bytes = read(tar, buff, MAX_LINE);
-            if (read_bytes == 0) {
+            char* buff = malloc(SEND_MAX_LINE * sizeof(char));
+            int read_bytes = read(tar_fd, buff, SEND_MAX_LINE);
+            if (read_bytes < 1) {
                 break;
             }
-            int snd = send(out_socket, buff, read_bytes, 0);
-            sent += snd;
+            int send_bytes = send(out_socket, buff, read_bytes, 0);
+            total_sent_bytes += send_bytes;
         }
 
-        close(tar);
+        close(tar_fd);
 
-        printf("Sent %d bytes\n", sent);
+        printf("Sent %d bytes\n", total_sent_bytes);
 
         if (remove("temp.tar.gz") != 0) {
+            printf("Deleted temp.tar.gz\n");
+        } else {
             perror("remove");
-            exit(1);
         }
-
-        execute_command_no_out("rm temp.tar.gz");
     }
 }
 
@@ -226,9 +249,7 @@ pclientrequest(int l_socket_fd) {
             if (strcmp(read_buff, "quitc") == 0) {
                 printf("Client %d disconnected\n", l_socket_fd);
                 unset_pid(getpid());
-                kill(server_pid, SIGQUIT);
-                kill(getpid(), SIGTERM);
-                break;
+                exit(0);
             }
 
             char* cmd = malloc(MAX_LINE * sizeof(char));
@@ -261,7 +282,6 @@ int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
     signal(SIGINT, terminate);
-    signal(SIGQUIT, terminate);
 
     server_pid = getpid();
     c_pid_pool = malloc(MAX_CLIENTS * sizeof(int));
@@ -291,7 +311,7 @@ main(int argc, char* argv[]) {
     printf("Server listening...\n");
 
     int i = 0;
-    while (!quit) {
+    while (1) {
         // will have to handle i, if client disconnects, the next client will take up empty slot.
         if ((c_socket_fd[i++] = accept(socket_fd, (struct sockaddr*)NULL, NULL))
             == -1) {
