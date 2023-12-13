@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <netinet/in.h> //structure for storing address information
 #include <signal.h>
 #include <stdio.h>
@@ -96,13 +97,20 @@ process_command(char* cmd, char* command) {
     tokenizer(cmd, tokens);
 
     if (strcmp(tokens[0], "getfn") == 0) {
-        int n = sprintf(
-            command,
-            "ls -la ~ | grep %s | awk '{print \"File Name: \"$9\"\\tSize: "
-            "\"$5\"\\tDate: \"$6\" \"$7\"\\tPermissions: \"$1}'",
-            tokens[1]);
+        sprintf(command,
+                "(ls -la \"$(find ~ -name '%s' -type f | "
+                "head -1)\" || ls -la ~ | grep -x \"%s\") | awk "
+                "'{print \"File Name: "
+                "\"$9\"\\tSize: "
+                "\"$5\"\\tDate: \"$6\" \"$7\"\\tPermissions: \"$1}'",
+                tokens[1], tokens[1]);
 
     } else if (strcmp(tokens[0], "getfz") == 0) {
+        // update the temo folder to home dir.
+        sprintf(command,
+                "find ~/test/ -type f -size +%sc -a -size -%sc -exec tar "
+                "czvf temp.tar.gz {} +",
+                tokens[1], tokens[2]);
     } else if (strcmp(tokens[0], "getft") == 0) {
     } else if (strcmp(tokens[0], "getfdb") == 0) {
     } else if (strcmp(tokens[0], "getfda") == 0) {
@@ -111,6 +119,9 @@ process_command(char* cmd, char* command) {
 
 void
 execute_command(char* command, char* output) {
+    int stderr = dup(2);
+    int null_fd = open("/dev/null", O_WRONLY);
+    dup2(null_fd, 2);
     FILE* op = popen(command, "r");
     if (op == NULL) {
         perror("popen");
@@ -125,6 +136,23 @@ execute_command(char* command, char* output) {
 
     printf("Output: %s\n", output);
     pclose(op);
+}
+
+void
+process_output(int out_socket, char* command, char* output_buffer) {
+
+    printf("Command: %s\n", command);
+
+    if (output_buffer[0] == '\0') {
+        int snd = send(out_socket, "No file found", 13, 0);
+    }
+
+    if (strcmp(command, "getfn") == 0) {
+        int snd = send(out_socket, output_buffer, strlen(output_buffer), 0);
+    } else {
+        // send the tar file
+        // delete the tar file
+    }
 }
 
 void
@@ -143,22 +171,19 @@ pclientrequest(int l_socket_fd) {
             memset(read_buff, 0, MAX_LINE);
 
             // wait for client to send command
-            int rcv = -1;
-            if ((rcv = recv(l_socket_fd, read_buff, MAX_LINE, 0)) < 0) {
+            int recv_byte = -1;
+            if ((recv_byte = recv(l_socket_fd, read_buff, MAX_LINE, 0)) < 0) {
                 perror("recv");
                 exit(1);
-            } else if (rcv == 0) {
+            } else if (recv_byte == 0) {
                 printf("Client disconnected\n");
                 unset_pid(getpid());
                 break;
             } else {
-                printf("Received %d bytes: %s\n", rcv, read_buff);
+                printf("Received %d bytes: %s\n", recv_byte, read_buff);
             }
 
-            read_buff[rcv] = '\0';
-
-            printf("Read_buff: %s: %d\n", read_buff,
-                   strcmp(read_buff, "quitc"));
+            read_buff[recv_byte] = '\0';
 
             if (strcmp(read_buff, "quitc") == 0) {
                 printf("Client %d disconnected\n", l_socket_fd);
@@ -169,26 +194,25 @@ pclientrequest(int l_socket_fd) {
             }
 
             char* cmd = malloc(MAX_LINE * sizeof(char));
+            memset(cmd, 0, MAX_LINE);
+
             process_command(read_buff, cmd);
-            free(read_buff);
 
             // create write buffer and initialize with 0
             write_buff = malloc(MAX_LINE * sizeof(char));
             memset(write_buff, 0, MAX_LINE);
 
             execute_command(cmd, write_buff);
-            printf("Write_buff: %s\n", write_buff);
             free(cmd);
 
-            if (write_buff[0] == '\0') {
-                int snd = send(l_socket_fd, "No fule found\n", 14, 0);
-                printf("Sent %d bytes\n", snd);
-            } else {
-                int snd = send(l_socket_fd, write_buff, strlen(write_buff), 0);
-                printf("Sent %d bytes\n", snd);
-            }
+            char* token = malloc(16 * sizeof(char));
+            memset(token, 0, 16);
 
+            strcpy(token, strtok(read_buff, " "));
+
+            process_output(l_socket_fd, token, write_buff);
             free(write_buff);
+            free(read_buff);
         }
     } else {
         set_pid(pid);

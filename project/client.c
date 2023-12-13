@@ -39,6 +39,8 @@ validate_commands(char* cmd) {
             return 1;
         }
     } else if (strcmp(tokens[0], "getfz") == 0) {
+        printf("count: %d\n", count);
+        // check if there are 3 arguments
         if (count != 3) {
             printf("Error: Invalid format: Usage: getfz size1 size2 \n");
             return 1;
@@ -61,7 +63,6 @@ validate_commands(char* cmd) {
                 return 1;
             }
         }
-
     } else if (strcmp(tokens[0], "getft") == 0) {
         if (count > 4) {
             printf(
@@ -79,7 +80,6 @@ validate_commands(char* cmd) {
                 }
             }
         }
-
     } else if (strcmp(tokens[0], "getfdb") == 0
                || strcmp(tokens[0], "getfda") == 0) {
         // check if there is 1 argument and it is a date.
@@ -108,15 +108,14 @@ validate_commands(char* cmd) {
                 }
             }
         }
-
-        return 0;
-
     } else if (strcmp(tokens[0], "quitc") == 0) {
         return 0;
     } else {
         printf("Invalid command\n");
         return 1;
     }
+
+    return 0;
 }
 
 int
@@ -162,11 +161,18 @@ main(int argc, char* argv[]) {
         write_buff[strlen(write_buff) - 1] = '\0';
 
         if (validate_commands(write_buff) == 1) {
+            printf("Invalid command\n");
             continue;
         }
 
         // send command to server
-        send(socket_fd, write_buff, strlen(write_buff), 0);
+        int n = 0;
+        if ((n = send(socket_fd, write_buff, strlen(write_buff), 0)) < 0) {
+            perror("send");
+            exit(1);
+        } else {
+            printf("Sent %d bytes\n", n);
+        }
 
         char* cmd = strtok(write_buff, " ");
 
