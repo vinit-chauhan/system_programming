@@ -109,6 +109,8 @@ process_command(char* cmd, char* command) {
     char* tokens[4] = {NULL};
     tokenizer(cmd, tokens);
 
+    printf("pid: %d\n", getpid());
+
     if (strcmp(tokens[0], "getfn") == 0) {
         sprintf(command,
                 "(ls -la \"$(find ~ -name '%s' -type f | "
@@ -121,8 +123,8 @@ process_command(char* cmd, char* command) {
     } else if (strcmp(tokens[0], "getfz") == 0) {
         sprintf(command,
                 "find ~/ -type f -size +%dc -a -size -%dc -exec tar "
-                "czvf temp.tar.gz {} +",
-                atoi(tokens[1]) - 1, atoi(tokens[2]) + 1);
+                "czvf %d.tar.gz {} +",
+                atoi(tokens[1]) - 1, atoi(tokens[2]) + 1, getpid());
     } else if (strcmp(tokens[0], "getft") == 0) {
         char* temp = malloc(64 * sizeof(char));
         memset(temp, 0, 64);
@@ -144,19 +146,19 @@ process_command(char* cmd, char* command) {
         }
 
         sprintf(command,
-                "find ~/ -type f \\( %s \\) -exec tar czvf temp.tar.gz {} +",
-                temp);
+                "find ~/ -type f \\( %s \\) -exec tar czvf %d.tar.gz {} +",
+                temp, getpid());
     } else if (strcmp(tokens[0], "getfdb") == 0) {
         char* new_date = increase_date(tokens[1], 1);
         sprintf(command,
                 "find ~/test -type f ! -newermt \"%s\" ! -newermt "
-                "\"%s\" -exec tar czvf temp.tar.gz {} +",
-                tokens[1], new_date);
+                "\"%s\" -exec tar czvf %d.tar.gz {} +",
+                tokens[1], new_date, getpid());
     } else if (strcmp(tokens[0], "getfda") == 0) {
         sprintf(command,
                 "find ~/test -type f  -newermt \"%s\" -exec tar czvf "
-                "temp.tar.gz {} +",
-                tokens[1]);
+                "%d.tar.gz {} +",
+                tokens[1], getpid());
     }
 }
 
@@ -212,7 +214,11 @@ process_output(int out_socket, char* command, char* output_buffer) {
         printf("Sent %d bytes\n", total_sent_bytes);
 
     } else {
-        int tar_fd = open("temp.tar.gz", O_RDONLY);
+        char* file_name = malloc(16 * sizeof(char));
+        memset(file_name, 0, 16);
+        sprintf(file_name, "%d.tar.gz", getpid());
+
+        int tar_fd = open(file_name, O_RDONLY);
         int total_sent_bytes = 0;
         // send the file size
         while (1) {
@@ -229,7 +235,7 @@ process_output(int out_socket, char* command, char* output_buffer) {
 
         printf("Sent %d bytes\n", total_sent_bytes);
 
-        if (remove("temp.tar.gz") == 0) {
+        if (remove(file_name) == 0) {
             perror("remove");
         }
     }
@@ -242,13 +248,15 @@ pclientrequest(int l_socket_fd) {
         perror("fork");
         exit(1);
     } else if (pid == 0) {
-        char *write_buff, *read_buff;
+        char* write_buff = malloc(MAX_LINE * sizeof(char));
+        char* read_buff = malloc(MAX_LINE * sizeof(char));
 
+        // set signal handlers
         signal(SIGTERM, terminate_fork);
         signal(SIGINT, SIG_DFL);
 
         while (1) {
-            read_buff = malloc(MAX_LINE * sizeof(char));
+            // create a read buffer and initialize with 0
             memset(read_buff, 0, MAX_LINE);
 
             // wait for client to send command
@@ -276,7 +284,6 @@ pclientrequest(int l_socket_fd) {
             process_command(read_buff, cmd);
 
             // create write buffer and initialize with 0
-            write_buff = malloc(MAX_LINE * sizeof(char));
             memset(write_buff, 0, MAX_LINE);
 
             execute_command(cmd, write_buff);
