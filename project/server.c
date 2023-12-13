@@ -87,6 +87,40 @@ tokenizer(char* str, char** tokens) {
     return tokens;
 }
 
+char*
+increase_date(char* val, int increment) {
+    char* date = malloc(strlen(val) * sizeof(char));
+    strcpy(date, val);
+
+    int last_day[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+    int year = atoi(strtok(date, "-"));
+    int month = atoi(strtok(NULL, "-"));
+    int day = atoi(strtok(NULL, ""));
+
+    memset(date, 0, strlen(date));
+
+    printf("OLD Year: %d, Month: %d, Day: %d\n", year, month, day);
+
+    day += increment;
+
+    if (day > last_day[month - 1]) {
+        day = 1;
+        month++;
+    }
+
+    if (month > 12) {
+        month = 1;
+        year++;
+    }
+
+    printf("Year: %d, Month: %d, Day: %d\n", year, month, day);
+
+    sprintf(date, "%d-%d-%d", year, month, day);
+
+    return date;
+}
+
 void
 process_command(char* cmd, char* command) {
     char* tokens[4] = {NULL};
@@ -103,9 +137,9 @@ process_command(char* cmd, char* command) {
 
     } else if (strcmp(tokens[0], "getfz") == 0) {
         sprintf(command,
-                "find ~/ -type f -size +%sc -a -size -%sc -exec tar "
+                "find ~/ -type f -size +%dc -a -size -%dc -exec tar "
                 "czvf temp.tar.gz {} +",
-                tokens[1], tokens[2]);
+                atoi(tokens[1]) - 1, atoi(tokens[2]) + 1);
     } else if (strcmp(tokens[0], "getft") == 0) {
         char* temp = malloc(64 * sizeof(char));
         memset(temp, 0, 64);
@@ -131,10 +165,14 @@ process_command(char* cmd, char* command) {
                 temp);
 
     } else if (strcmp(tokens[0], "getfdb") == 0) {
+
+        char* new_date = increase_date(tokens[1], 1);
+        printf("new date: %s\n", new_date);
+
         sprintf(command,
-                "find ~/test -type f!  -newermt \"%s\" ! -newermt "
-                "\"%s+1\" -exec tar czvf temp.tar.gz {} +",
-                tokens[1], tokens[1]);
+                "find ~/test -type f ! -newermt \"%s\" ! -newermt "
+                "\"%s\" -exec tar czvf temp.tar.gz {} +",
+                tokens[1], new_date);
 
         printf("%s\n", command);
 
@@ -332,8 +370,6 @@ main(int argc, char* argv[]) {
         }
 
         pclientrequest(c_socket_fd[i - 1]);
-
-        sleep(10);
     }
 
     return 0;
