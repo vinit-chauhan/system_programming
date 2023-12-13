@@ -15,6 +15,7 @@
 int socket_fd;
 char* tar_path;
 
+// signal handler for SIGINT
 void
 func_term(int signum) {
     printf("Terminating client...\n");
@@ -131,9 +132,16 @@ main(int argc, char* argv[]) {
     tar_path = malloc(128 * sizeof(char));
     tar_path = getenv("HOME");
 
-    printf("tar_path: %s\n", tar_path);
-
     int rcv = -1;
+
+    if (argc != 3) {
+        printf("Usage: %s <server IP> <server port>\n", argv[0]);
+        return 1;
+    }
+
+    char* SRV_ADDR = malloc(16 * sizeof(char));
+    strcpy(SRV_ADDR, argv[1]);
+    int SRV_PORT = atoi(argv[2]);
 
     signal(SIGINT, func_term);
 
@@ -146,15 +154,15 @@ main(int argc, char* argv[]) {
 
     // Initialize socket structure
     servAdd.sin_family = AF_INET;
-    servAdd.sin_addr.s_addr = inet_addr("127.0.0.1");
-    servAdd.sin_port = htons((uint16_t)5000);
+
+    //  TODO: Fetch IP and port from user.
+    servAdd.sin_addr.s_addr = inet_addr(SRV_ADDR);
+    servAdd.sin_port = htons((uint16_t)SRV_PORT);
 
     // connect the client socket to server socket
     if (connect(socket_fd, (struct sockaddr*)&servAdd, sizeof(servAdd)) != 0) {
         printf("connection with the server failed...\n");
         exit(0);
-    } else {
-        printf("connected to the server..\n");
     }
 
     // create f23project directory in home dir
@@ -164,6 +172,39 @@ main(int argc, char* argv[]) {
 
     // set tar destination path
     strcat(tar_path, "/f23project/temp.tar.gz");
+
+    // receive server response on initial connection
+    char* buff = malloc(128 * sizeof(char));
+    int n = recv(socket_fd, buff, 128, 0);
+    buff[n - 1] = '\0';
+
+    // check if server responded with ok or mirror address
+    if (strcmp(buff, "ok") != 0) {
+        char* mirror_addr = malloc(16 * sizeof(char));
+        int mirror_port = 0;
+        sscanf(buff, "%s %d", mirror_addr, &mirror_port);
+        printf("Redirecting to mirror...\n");
+        close(socket_fd);
+
+        socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+        servAdd.sin_addr.s_addr = inet_addr(mirror_addr);
+        servAdd.sin_port = htons((uint16_t)mirror_port);
+
+        if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+            perror("socket");
+            return 1;
+        }
+
+        if (connect(socket_fd, (struct sockaddr*)&servAdd, sizeof(servAdd))
+            != 0) {
+            printf("connection with the mirror failed...\n");
+            exit(0);
+        } else {
+            printf("Connected to the mirror..\n");
+        }
+    } else {
+        printf("Connected to the server..\n");
+    }
 
     // go into client cli loop
     while (1) {

@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <wait.h>
 
-#define IS_MIRROR     0
+#define IS_MIRROR     1
 #define PORT          5000
 #define MIRROR_ADDR   "127.0.0.1"
 #define MIRROR_PORT   5001
