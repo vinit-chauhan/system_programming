@@ -48,23 +48,21 @@ validate_commands(char* cmd) {
             return 1;
         }
 
-        // check if the second argument is a number
-        for (int i = 0; i < strlen(tokens[1]); i++) {
-            if (tokens[1][i] < '0' || tokens[1][i] > '9') {
-                printf("Error: Argument 2 Not a Number : Usage: getfz size1 "
-                       "size2 \n");
-                return 1;
-            }
+        int size1 = atoi(tokens[1]);
+        int size2 = atoi(tokens[2]);
+
+        if ((size1 <= 0 && tokens[1][0] != '0')
+            || (size2 <= 0 && tokens[2][0] != '0')) {
+            printf("Error: Invalid format: Usage: getfz size1 size2 \n");
+            return 1;
         }
 
-        // check if the third argument is a number
-        for (int i = 0; i < strlen(tokens[2]); i++) {
-            if (tokens[2][i] < '0' || tokens[2][i] > '9') {
-                printf("Error: Argument 3 Not a Number: Usage: getfz size1 "
-                       "size2 \n");
-                return 1;
-            }
+        if (size1 > size2) {
+            printf("Error: size1 should be less than size2: Usage: "
+                   "getfz size1 size2 \n");
+            return 1;
         }
+
     } else if (strcmp(tokens[0], "getft") == 0) {
         if (count > 4) {
             printf(
@@ -82,6 +80,7 @@ validate_commands(char* cmd) {
                 }
             }
         }
+
     } else if (strcmp(tokens[0], "getfdb") == 0
                || strcmp(tokens[0], "getfda") == 0) {
         // check if there is 1 argument and it is a date.
@@ -110,6 +109,7 @@ validate_commands(char* cmd) {
                 }
             }
         }
+
     } else if (strcmp(tokens[0], "quitc") == 0) {
         return 0;
     } else {
