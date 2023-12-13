@@ -126,15 +126,25 @@ process_command(char* cmd, char* command) {
             }
         }
 
-        // update the temo folder to home dir.
         sprintf(command,
                 "find ~/ -type f \\( %s \\) -exec tar czvf temp.tar.gz {} +",
                 temp);
 
-        printf("Command: %s\n", command);
-
     } else if (strcmp(tokens[0], "getfdb") == 0) {
+        sprintf(command,
+                "find ~/test -type f!  -newermt \"%s\" ! -newermt "
+                "\"%s+1\" -exec tar czvf temp.tar.gz {} +",
+                tokens[1], tokens[1]);
+
+        printf("%s\n", command);
+
     } else if (strcmp(tokens[0], "getfda") == 0) {
+        sprintf(command,
+                "find ~/test -type f  -newermt \"%s\" -exec tar czvf "
+                "temp.tar.gz {} +",
+                tokens[1]);
+
+        printf("%s\n", command);
     }
 }
 
