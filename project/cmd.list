@@ -1,0 +1,19 @@
+getfn a.txt
+
+getfn cred.txt
+
+getfz 2 4
+
+getft asdf zxcv abc
+
+
+getft asdf txt
+getft html
+
+
+getfda 2023-11-23
+getfda 2023-11-22
+
+getfdb 2023-12-10
+
+quitc
