@@ -353,9 +353,9 @@ pclientrequest(int l_socket_fd) {
 
             // process the output
             process_output(l_socket_fd, cmd, write_buff);
-            free(write_buff);
-            free(read_buff);
         }
+        free(write_buff);
+        free(read_buff);
     } else { // parent process
 
         // add the child process id to the pool

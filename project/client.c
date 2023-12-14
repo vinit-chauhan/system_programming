@@ -13,7 +13,6 @@
 #define MAX_BUFF_SIZE 1024
 
 int socket_fd;
-char* tar_path;
 
 // signal handler for SIGINT
 void
@@ -23,6 +22,7 @@ func_term(int signum) {
     exit(0);
 }
 
+// validate commands
 int
 validate_commands(char* cmd) {
     char* cmd_copy = malloc(strlen(cmd) * sizeof(char));
@@ -70,7 +70,7 @@ validate_commands(char* cmd) {
         }
 
     } else if (strcmp(tokens[0], "getft") == 0) {
-        if (count > 4) {
+        if (count > 4 || count < 2) {
             printf(
                 "Error: Invalid format: Usage: getft <extension list> // upto "
                 "3\n");
@@ -94,6 +94,8 @@ validate_commands(char* cmd) {
             printf("Error: Invalid format: Usage: %s date \n", tokens[0]);
             return 1;
         }
+
+        // check if date is in the correct format
         char* date = tokens[1];
         if (strlen(date) != 10) {
             printf("Error: Invalid date format. Expected format: yyyy-mm-dd\n");
@@ -129,21 +131,28 @@ validate_commands(char* cmd) {
 int
 main(int argc, char* argv[]) {
     struct sockaddr_in servAdd;
-    tar_path = malloc(128 * sizeof(char));
-    tar_path = getenv("HOME");
+
+    // register signal handler for SIGINT
+    signal(SIGINT, func_term);
+
+    // set tar destination path
+    char* tar_path = malloc(128 * sizeof(char));
+    strcpy(tar_path, getenv("HOME"));
+    // set tar destination path
+    strcat(tar_path, "/f23project/temp.tar.gz");
 
     int rcv = -1;
 
+    // check if server ip and port are provided
     if (argc != 3) {
         printf("Usage: %s <server IP> <server port>\n", argv[0]);
         return 1;
     }
 
+    // set server ip and port
     char* SRV_ADDR = malloc(16 * sizeof(char));
     strcpy(SRV_ADDR, argv[1]);
     int SRV_PORT = atoi(argv[2]);
-
-    signal(SIGINT, func_term);
 
     // create socket
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -155,7 +164,6 @@ main(int argc, char* argv[]) {
     // Initialize socket structure
     servAdd.sin_family = AF_INET;
 
-    //  TODO: Fetch IP and port from user.
     servAdd.sin_addr.s_addr = inet_addr(SRV_ADDR);
     servAdd.sin_port = htons((uint16_t)SRV_PORT);
 
@@ -170,9 +178,6 @@ main(int argc, char* argv[]) {
         system("mkdir ~/f23project");
     }
 
-    // set tar destination path
-    strcat(tar_path, "/f23project/temp.tar.gz");
-
     // receive server response on initial connection
     char* buff = malloc(128 * sizeof(char));
     int n = recv(socket_fd, buff, 128, 0);
@@ -186,15 +191,17 @@ main(int argc, char* argv[]) {
         printf("Redirecting to mirror...\n");
         close(socket_fd);
 
-        socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+        // update the address and port of mirror
         servAdd.sin_addr.s_addr = inet_addr(mirror_addr);
         servAdd.sin_port = htons((uint16_t)mirror_port);
 
+        // create a new socket for mirror
         if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
             perror("socket");
             return 1;
         }
 
+        // connect the client socket to mirror socket
         if (connect(socket_fd, (struct sockaddr*)&servAdd, sizeof(servAdd))
             != 0) {
             printf("connection with the mirror failed...\n");
@@ -211,16 +218,21 @@ main(int argc, char* argv[]) {
         int n = 0; // used fro multiple counters.
         char* write_buff = malloc(MAX_BUFF_SIZE * sizeof(char));
         char* read_buff = malloc(10 * MAX_BUFF_SIZE * sizeof(char));
+
         printf("Client$ ");
         fflush(stdout);
+
+        // read command from stdin
         fgets(write_buff, MAX_BUFF_SIZE, stdin);
         if (write_buff[0] == '\n') {
             continue;
         }
 
+        // remove trailing newline
         write_buff[strlen(write_buff) - 1] = '\0';
 
-        if (validate_commands(write_buff) == 1) {
+        // validate commands
+        if (validate_commands(write_buff) != 0) {
             continue;
         }
 
@@ -232,14 +244,19 @@ main(int argc, char* argv[]) {
             printf("Sent %d bytes\n", n);
         }
 
+        // extract command from write_buff
         char* cmd = strtok(write_buff, " ");
 
+        // check if command is quitc
         if (strcmp(cmd, "quitc") == 0) {
             printf("Client disconnected\n");
             break;
         }
 
+        // clear read_buff
         memset(read_buff, 0, 10 * MAX_BUFF_SIZE);
+
+        // receive response from server
         if ((rcv = recv(socket_fd, read_buff, 10 * MAX_BUFF_SIZE, 0)) < 0) {
             perror("recv");
             exit(1);
@@ -249,37 +266,46 @@ main(int argc, char* argv[]) {
         }
 
         if (strcmp(read_buff, "__err_nofile") == 0) {
+            // check if server responded with error
             printf("No files found\n");
             continue;
         } else if (strcmp(cmd, "getfn") == 0) {
+            // if command is getfn, print the response from buffer
             printf("%s\n", read_buff);
             continue;
         } else {
+            // check if f23project directory exists in the home dir
+            if (system("test -d ~/f23project") != 0) {
+                system("mkdir ~/f23project");
+            }
+
+            // create temp.tar.gz file in f23project directory
             int tar_fd = open(tar_path, O_CREAT | O_WRONLY, 0644);
             if ((n = write(tar_fd, read_buff, rcv)) < 0) {
                 perror("write");
                 exit(1);
             }
+
             int total_rcv = rcv;
-            while (rcv > 0 && rcv == 10 * MAX_BUFF_SIZE) {
+
+            // receive file from server
+            while (rcv == 10 * MAX_BUFF_SIZE) {
                 if ((rcv = recv(socket_fd, read_buff, 10 * MAX_BUFF_SIZE, 0))
                     < 0) {
                     perror("recv");
                     exit(1);
                 }
-                read_buff[rcv] = '\0';
+
+                // write the received data to the file
                 if ((n = write(tar_fd, read_buff, rcv)) < 0) {
                     perror("write");
                     exit(1);
                 }
                 total_rcv += rcv;
-                // printf("Received %d bytes\n", rcv);
             }
             printf("Received %d bytes.\n", total_rcv);
             close(tar_fd);
         }
-        free(write_buff);
-        free(read_buff);
     }
 
     return 0;
