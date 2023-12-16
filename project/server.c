@@ -166,12 +166,12 @@ process_command(char* cmd, char* command) {
     } else if (strcmp(tokens[0], "getfdb") == 0) {
         char* new_date = increase_date(tokens[1], 1);
         sprintf(command,
-                "find ~/test -type f ! -newermt \"%s\" ! -newermt "
+                "find ~/ -type f ! -newermt \"%s\" ! -newermt "
                 "\"%s\" -exec tar czvf %d.tar.gz {} +",
                 tokens[1], new_date, getpid());
     } else if (strcmp(tokens[0], "getfda") == 0) {
         sprintf(command,
-                "find ~/test -type f  -newermt \"%s\" -exec tar czvf "
+                "find ~/ -type f  -newermt \"%s\" -exec tar czvf "
                 "%d.tar.gz {} +",
                 tokens[1], getpid());
     }
